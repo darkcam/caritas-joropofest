@@ -43,10 +43,22 @@ Todas viven en `.env.local`. Ver [`.env.example`](./.env.example) para la lista 
 | Variable | Requerida | Para qué |
 |---|---|---|
 | `NEXT_PUBLIC_EVENT_UNLOCK_AT` | no | ISO-8601 de cuándo se "abre" el evento. Default `2026-08-29T00:00:00-05:00`. |
+| `NEXT_PUBLIC_BRAND_PRESET` | no | Preset de marca base: `platzi` o `joropofest`. Default `platzi`. |
+| `NEXT_PUBLIC_BRAND_*` | no | Overrides del tema (estilo de card, colores, textos, QR, prompt IA) cuando no hay tema en Supabase. |
+| `NEXT_PUBLIC_BRAND_CARD_STYLE` | no | `pixel`, `modern` o `frame`. |
+| `NEXT_PUBLIC_BRAND_FRAME_IMAGE` | no | Portada del evento usada por el estilo `frame` (ruta pública o URL). |
+| `NEXT_PUBLIC_BRAND_FRAME_ASPECT` | no | Proporción ancho/alto de la portada. Default `0.8` (1080x1350). |
+| `NEXT_PUBLIC_BRAND_FRAME_RADIUS` | no | Radio de las esquinas del recuadro de la foto, como fracción del ancho. |
+| `NEXT_PUBLIC_BRAND_FRAME_AREA` | no | `x,y,ancho,alto` (0-1) del recuadro donde va la foto dentro de la portada. |
+| `BRAND_ADMIN_TOKEN` | no | Si se define, `PUT`/`POST` en `/api/brand` exigen el header `x-brand-admin-token`. |
 | `SUPABASE_URL` | solo para `/muro` | URL del proyecto Supabase. |
 | `SUPABASE_PUBLISHABLE_KEY` | solo para `/muro` | Publishable / anon key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Solo si necesitas bypass de RLS desde el server. **No** la prefijes con `NEXT_PUBLIC_`. |
 | `SUPABASE_WALL_BUCKET` | no | Bucket de imágenes. Default `wall-images`. |
+| `STABILITY_API_KEY` | solo para IA | Habilita generación con Stability AI (proveedor preferido). |
+| `STABILITY_ENDPOINT` | no | Default `https://api.stability.ai/v2beta/stable-image/control/structure`. |
+| `STABILITY_CONTROL_STRENGTH` | no | 0–1, cuánto respeta la composición de la selfie. Default `0.75`. |
+| `STABILITY_STYLE_PRESET` | no | `style_preset` de Stability, si el endpoint elegido lo admite. |
 | `AI_GATEWAY_API_KEY` | solo para IA | Habilita generación vía Vercel AI Gateway. |
 | `AI_GATEWAY_IMAGE_MODEL` | no | Default `google/gemini-3-pro-image`. |
 | `AI_GATEWAY_BASE_URL` | no | Default `https://ai-gateway.vercel.sh/v1`. |
@@ -76,9 +88,30 @@ Sin keys de IA la app usa el render local en canvas (sin coste, sin red, pero de
 
 4. (Opcional) Ajusta las policies en `supabase/schema.sql` si quieres cerrar el `INSERT` solo a usuarios autenticados.
 
+## Marca del evento (`/marca`)
+
+La app no está atada a Platzi Conf: estilo de card, colores, textos, QR, nombre del PNG y el prompt de IA viven en un `BrandTheme`.
+
+1. Aplica el schema de marca (SQL editor de Supabase o CLI):
+
+   ```bash
+   cat supabase/brand-schema.sql
+   ```
+
+   Crea la tabla `brand_themes`, donde una sola fila queda con `is_active = true`.
+
+2. Abre `/marca`, edita el tema con la vista previa en vivo de la card y pulsa **Publicar tema**. Queda guardado en Supabase, así que todos los dispositivos del evento ven el mismo branding al recargar.
+3. Si Supabase no está configurado o la tabla no existe, la app cae al preset de `NEXT_PUBLIC_BRAND_PRESET` y a los overrides `NEXT_PUBLIC_BRAND_*` (el botón **Copiar .env** del editor los genera).
+
+El campo `cardStyle` elige cómo se dibuja la card: `pixel` (marco 16-bit, tipografía de pixel art, retrato pixelado en el fallback local), `modern` (marco redondeado, tipografía sans y foto sin pixelar) o `frame` (usa la portada del evento como card completa y coloca la foto dentro del recuadro configurado, sin dibujar textos encima).
+
+Con el estilo `frame`, en `/marca` puedes subir la portada (se guarda en el bucket de Supabase vía `POST /api/brand`), pulsar **Detectar área de foto** para que se mida automáticamente el recuadro claro de la imagen, y ajustar a mano posición, tamaño, esquinas y proporción. La portada del preset `joropofest` vive en `public/marco-joropofest.png`. `aiStyle` describe el estilo que se le pide a la IA y `artStyleLabel` es el nombre del estilo que ve la gente en la interfaz.
+
+Los colores se exponen como variables CSS (`--brand-primary`, `--brand-ink`, `--brand-light`, `--brand-muted`) y alimentan también el render del canvas.
+
 ## Generación con IA (opcional)
 
-La app intenta primero **Vercel AI Gateway** y si no hay key, cae a **OpenAI**. Si ninguno está configurado, el endpoint devuelve `501` y el cliente sigue funcionando con la card generada localmente.
+La app intenta primero **Stability AI** (`control/structure`, que conserva la composición de la selfie y aplica el estilo del tema), luego **Vercel AI Gateway** y por último **OpenAI**. Si ninguno está configurado, el endpoint devuelve `501` y el cliente sigue funcionando con la card generada localmente.
 
 Detalles en `app/api/generate-card/route.ts`. El cooldown por IP es de 60s, en memoria del proceso (suficiente para un evento; para producción persistente usa un store externo).
 
@@ -96,12 +129,19 @@ app/
   api/
     generate-card/   POST: pasa la selfie por la IA o devuelve 501.
     wall/            GET/POST: lista y sube cards al muro.
+    brand/           GET/PUT: tema de marca activo.
   lib/wall.ts        cliente Supabase (REST + storage).
+  lib/brand.ts       tipo BrandTheme, presets y fallback por env.
+  lib/brand-store.ts lectura/escritura del tema en Supabase.
+  lib/card-render.ts render de la card en canvas, parametrizado por tema.
+  brand-provider.tsx contexto de marca + variables CSS.
+  marca/             editor de marca con preview de la card.
   muro/              página /muro y componente realtime.
   page.tsx           home: PhotoCardStudio.
   photo-card-studio.tsx  todo el flujo de captura, render, share, descarga.
 public/              QR, referencia de estilo, íconos.
-supabase/schema.sql  schema reproducible del muro.
+supabase/schema.sql        schema reproducible del muro.
+supabase/brand-schema.sql  schema de brand_themes.
 ```
 
 ## Verificación

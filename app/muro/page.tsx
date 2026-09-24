@@ -1,4 +1,6 @@
 import Image from "next/image";
+import BrandFooter from "../brand-footer";
+import { getBrandTheme } from "../lib/brand-store";
 import {
   getSupabaseBrowserConfig,
   listWallImages,
@@ -44,25 +46,36 @@ async function getWallPageState(): Promise<WallPageState> {
 }
 
 export default async function MuroPage() {
-  const state = await getWallPageState();
+  const [state, theme] = await Promise.all([getWallPageState(), getBrandTheme()]);
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#121F3D] text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(152,202,63,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_30%)]" />
+    <main className="relative min-h-dvh overflow-hidden bg-[var(--brand-ink)] text-white">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: `radial-gradient(circle at top left, ${theme.colors.primary}2e, transparent 34%), radial-gradient(circle at bottom right, rgba(255,255,255,0.08), transparent 30%)`,
+        }}
+      />
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-50 flex items-start justify-between gap-6 bg-gradient-to-b from-[#121F3D]/92 via-[#121F3D]/55 to-transparent p-5 pb-20 sm:p-8 sm:pb-24">
+      <header
+        className="pointer-events-none absolute inset-x-0 top-0 z-50 flex items-start justify-between gap-6 p-5 pb-20 sm:p-8 sm:pb-24"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, ${theme.colors.ink}eb, ${theme.colors.ink}8c, transparent)`,
+        }}
+      >
         <h1
-          className="max-w-[calc(100%-8rem)] text-4xl font-black uppercase leading-[0.98] tracking-[0.08em] text-[#98CA3F] [font-variant-ligatures:none] [text-shadow:4px_4px_0_#121F3D] sm:max-w-[calc(100%-11rem)] sm:text-6xl lg:text-7xl"
+          className="max-w-[calc(100%-8rem)] text-4xl font-black uppercase leading-[0.98] tracking-[0.08em] text-[var(--brand-primary)] [font-variant-ligatures:none] sm:max-w-[calc(100%-11rem)] sm:text-6xl lg:text-7xl"
           style={{
             fontFamily:
               "'Courier New', Courier, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+            textShadow: `4px 4px 0 ${theme.colors.ink}`,
           }}
         >
-          MURO DE PLATZI CONF
+          {theme.wallTitle}
         </h1>
         <div className="shrink-0 bg-white p-2 shadow-[0_18px_55px_rgba(0,0,0,0.55)] sm:p-3">
           <Image
-            src="/caritas-platzi.png"
+            src={theme.qrImage}
             alt="QR para generar tu imagen"
             width={144}
             height={144}
@@ -77,26 +90,7 @@ export default async function MuroPage() {
         initialImages={state.images}
         supabaseConfig={state.supabaseConfig}
       />
-      <footer className="pointer-events-auto absolute inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#121F3D]/75 px-5 py-4 text-center font-mono text-xs leading-6 text-zinc-400 backdrop-blur-sm sm:text-sm">
-        Creado por{" "}
-        <a
-          href="https://erasmoh.dev"
-          target="_blank"
-          rel="noreferrer"
-          className="font-black text-[#98CA3F] underline decoration-[#98CA3F]/40 underline-offset-4 transition hover:text-green-300"
-        >
-          @ErasmoHernandez
-        </a>
-        , con amor para Platzi Conf ·{" "}
-        <a
-          href="https://erasmoh.dev"
-          target="_blank"
-          rel="noreferrer"
-          className="font-black text-white underline decoration-white/30 underline-offset-4 transition hover:text-[#98CA3F]"
-        >
-          erasmoh.dev
-        </a>
-      </footer>
+      <BrandFooter className="pointer-events-auto absolute inset-x-0 bottom-0 z-50 bg-black/45 backdrop-blur-sm" />
     </main>
   );
 }

@@ -70,7 +70,7 @@ function mergeWallImages(currentImages: WallImageRecord[], incomingImages: WallI
 
 function WallImageCounter({ count }: { count: number }) {
   return (
-    <div className="pointer-events-none absolute left-5 top-36 z-50 bg-[#121F3D]/70 px-4 py-3 font-mono text-[#98CA3F] shadow-[6px_6px_0_#121F3D] backdrop-blur-sm sm:left-8 sm:top-48 sm:px-5 sm:py-4">
+    <div className="pointer-events-none absolute left-5 top-36 z-50 bg-[var(--brand-ink)]/70 px-4 py-3 font-mono text-[var(--brand-primary)] shadow-[6px_6px_0_var(--brand-ink)] backdrop-blur-sm sm:left-8 sm:top-48 sm:px-5 sm:py-4">
       <div className="text-4xl font-black leading-none tracking-[0.08em] sm:text-6xl">
         {String(count).padStart(3, "0")}
       </div>
@@ -170,7 +170,7 @@ export default function WallRealtime({ configured, initialImages, supabaseConfig
         <WallImageCounter count={images.length} />
         <div className="relative z-10 flex min-h-dvh items-center justify-center p-8 text-center">
           <div className="max-w-md space-y-3">
-            <p className="text-3xl font-black text-[#98CA3F]">Aún no hay cards en el muro</p>
+            <p className="text-3xl font-black text-[var(--brand-primary)]">Aún no hay cards en el muro</p>
             <p className="text-sm leading-6 text-zinc-400">
               Cuando alguien autorice compartir su imagen generada, aparecerá aquí.
             </p>
@@ -188,7 +188,7 @@ export default function WallRealtime({ configured, initialImages, supabaseConfig
           <article
             key={image.id}
             style={getCardStyle(image, index, images.length)}
-            className="absolute w-[38vw] min-w-[132px] max-w-[240px] overflow-hidden rounded-[1.15rem] bg-[#121F3D] shadow-[0_24px_70px_rgba(0,0,0,0.6)] transition duration-300 hover:z-50 hover:scale-110 sm:w-[24vw] md:w-[220px]"
+            className="absolute w-[38vw] min-w-[132px] max-w-[240px] overflow-hidden rounded-[1.15rem] bg-[var(--brand-ink)] shadow-[0_24px_70px_rgba(0,0,0,0.6)] transition duration-300 hover:z-50 hover:scale-110 sm:w-[24vw] md:w-[220px]"
           >
             <div className="relative aspect-[2/3]">
               <Image

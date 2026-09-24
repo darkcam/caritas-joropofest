@@ -1,10 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { getBrandTheme } from "../../lib/brand-store";
 
 export const runtime = "nodejs";
 
 const DEFAULT_GATEWAY_MODEL = "google/gemini-3-pro-image";
 const DEFAULT_OPENAI_MODEL = "gpt-image-1";
+const DEFAULT_STABILITY_ENDPOINT = "https://api.stability.ai/v2beta/stable-image/control/structure";
+const DEFAULT_STABILITY_CONTROL_STRENGTH = "0.75";
+const STABILITY_NEGATIVE_PROMPT =
+  "text, watermark, logo, caption, letters, frame, border, extra people, deformed face, extra limbs, blurry";
 const MAX_IMAGE_LENGTH = 10 * 1024 * 1024;
 const AI_GENERATION_COOLDOWN_MS = 60_000;
 const DEFAULT_EVENT_UNLOCK_AT = "2026-08-29T00:00:00-05:00";
@@ -12,16 +17,15 @@ const EVENT_UNLOCK_AT = process.env.NEXT_PUBLIC_EVENT_UNLOCK_AT ?? DEFAULT_EVENT
 const DEV_UNLOCK_COOKIE = "platzi_dev_unlock";
 const generationCooldowns = new Map<string, number>();
 
-const prompt = `
-Transform the provided selfie into a premium 16-bit pixel portrait for a vertical collectible trading card.
+function buildPrompt(style: string, palette: string) {
+  return `
+Transform the provided selfie into ${style}, for a vertical collectible trading card.
 Preserve the person's likeness, face shape, hair, expression, pose, skin tone relationships, and main identifying features.
-The output must look like intentionally hand-crafted 16-bit pixel art, not a filtered photograph.
-Use chunky pixel shapes, crisp stair-stepped edges, simplified facial features, graphic clusters of light and shadow, and controlled dithering.
-Use a constrained Platzi-inspired palette: Platzi navy #121F3D, white, warm gray, dark gray, and Platzi green #98CA3F.
+Use a constrained event-branded palette: ${palette}.
 Make it a centered bust portrait with a clean simple background, strong silhouette, enough headroom, visible shoulders, and empty lower space for an event overlay.
 Do not add text, logos, dates, captions, labels, borders, or extra people.
-Avoid photorealism, smooth gradients, painterly brush strokes, anime style, 3D render, and realistic camera blur.
 `.trim();
+}
 
 type GenerateRequest = {
   imageDataUrl?: unknown;
@@ -152,7 +156,61 @@ async function dataUrlToBlob(dataUrl: string) {
   return response.blob();
 }
 
-async function generateWithOpenAI(imageDataUrl: string) {
+async function generateWithStability(imageDataUrl: string, prompt: string) {
+  const apiKey = process.env.STABILITY_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const formData = new FormData();
+  const imageBlob = await dataUrlToBlob(imageDataUrl);
+  const stylePreset = process.env.STABILITY_STYLE_PRESET;
+
+  formData.append("image", imageBlob, "selfie.png");
+  formData.append("prompt", prompt);
+  formData.append("negative_prompt", STABILITY_NEGATIVE_PROMPT);
+  formData.append(
+    "control_strength",
+    process.env.STABILITY_CONTROL_STRENGTH ?? DEFAULT_STABILITY_CONTROL_STRENGTH,
+  );
+  formData.append("output_format", "png");
+
+  if (stylePreset) {
+    formData.append("style_preset", stylePreset);
+  }
+
+  const response = await fetch(process.env.STABILITY_ENDPOINT ?? DEFAULT_STABILITY_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+  const data = (await response.json()) as {
+    image?: string;
+    finish_reason?: string;
+    message?: string;
+    errors?: string[];
+  };
+
+  if (!response.ok) {
+    throw new Error(data.errors?.[0] ?? data.message ?? "Stability AI image generation failed");
+  }
+
+  if (data.finish_reason === "CONTENT_FILTERED") {
+    throw new Error("Stability AI filtró la imagen generada. Intenta con otra foto.");
+  }
+
+  if (!data.image) {
+    throw new Error("Stability AI did not return an image");
+  }
+
+  return `data:image/png;base64,${data.image}`;
+}
+
+async function generateWithOpenAI(imageDataUrl: string, prompt: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -189,14 +247,14 @@ async function generateWithOpenAI(imageDataUrl: string) {
   return imageUrl.startsWith("http") ? remoteImageToDataUrl(imageUrl) : imageUrl;
 }
 
-async function generateWithAiGateway(imageDataUrl: string) {
+async function generateWithAiGateway(imageDataUrl: string, prompt: string, useStyleReference: boolean) {
   const apiKey = process.env.AI_GATEWAY_API_KEY;
 
   if (!apiKey) {
     return null;
   }
 
-  const styleReference = await getStyleReferenceDataUrl();
+  const styleReference = useStyleReference ? await getStyleReferenceDataUrl() : null;
   const imageContent = [
     { type: "text", text: prompt },
     { type: "image_url", image_url: { url: imageDataUrl } },
@@ -270,14 +328,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const imageDataUrl = (await generateWithAiGateway(body.imageDataUrl)) ?? (await generateWithOpenAI(body.imageDataUrl));
+    const theme = await getBrandTheme();
+    const prompt = buildPrompt(theme.aiStyle, theme.aiPalette);
+    const imageDataUrl =
+      (await generateWithStability(body.imageDataUrl, prompt)) ??
+      (await generateWithAiGateway(body.imageDataUrl, prompt, theme.cardStyle === "pixel")) ??
+      (await generateWithOpenAI(body.imageDataUrl, prompt));
 
     if (!imageDataUrl) {
       return jsonResponse(
         {
           configured: false,
           error:
-            "Falta configurar AI_GATEWAY_API_KEY para Vercel AI Gateway u OPENAI_API_KEY como alternativa. La card base sigue disponible.",
+            "Falta configurar STABILITY_API_KEY, AI_GATEWAY_API_KEY u OPENAI_API_KEY. La card base sigue disponible.",
         },
         { status: 501 },
       );
