@@ -1,10 +1,10 @@
 import { getBrandThemeFromEnv, normalizeBrandTheme } from "../../lib/brand";
 import {
+  BrandStorageUnavailableError,
   fetchActiveBrandTheme,
   isBrandAdminRequest,
   isBrandAdminTokenRequired,
   saveBrandTheme,
-  SupabaseBrandConfigError,
 } from "../../lib/brand-store";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ type SaveBrandRequest = {
 };
 
 function errorResponse(error: unknown, fallback: string) {
-  if (error instanceof SupabaseBrandConfigError) {
+  if (error instanceof BrandStorageUnavailableError) {
     return Response.json({ configured: false, error: error.message }, { status: 503 });
   }
 
@@ -35,11 +35,12 @@ export async function GET() {
       theme: theme ?? envTheme,
     });
   } catch (error) {
-    if (error instanceof SupabaseBrandConfigError) {
+    if (error instanceof BrandStorageUnavailableError) {
       return Response.json({
         configured: false,
         source: "env",
         tokenRequired: isBrandAdminTokenRequired(),
+        error: error.message,
         theme: envTheme,
       });
     }

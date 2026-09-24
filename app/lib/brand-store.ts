@@ -2,10 +2,19 @@ import { getBrandThemeFromEnv, normalizeBrandTheme, type BrandTheme } from "./br
 
 const BRAND_TABLE = "brand_themes";
 
-export class SupabaseBrandConfigError extends Error {
+export class BrandStorageUnavailableError extends Error {}
+
+export class SupabaseBrandConfigError extends BrandStorageUnavailableError {
   constructor() {
     super("Falta configurar SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY.");
     this.name = "SupabaseBrandConfigError";
+  }
+}
+
+export class BrandTableMissingError extends BrandStorageUnavailableError {
+  constructor() {
+    super("Falta crear la tabla brand_themes con supabase/brand-schema.sql.");
+    this.name = "BrandTableMissingError";
   }
 }
 
@@ -40,16 +49,25 @@ function getAuthHeaders(apiKey: string) {
   };
 }
 
-async function readSupabaseError(response: Response) {
-  const text = await response.text();
+const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
 
+function parseSupabaseError(text: string) {
   try {
-    const data = JSON.parse(text) as { message?: string; error?: string };
-
-    return data.message ?? data.error ?? text;
+    return JSON.parse(text) as { message?: string; error?: string; code?: string };
   } catch {
-    return text;
+    return null;
   }
+}
+
+async function throwSupabaseError(response: Response): Promise<never> {
+  const text = await response.text();
+  const data = parseSupabaseError(text);
+
+  if (data?.code && MISSING_TABLE_CODES.has(data.code)) {
+    throw new BrandTableMissingError();
+  }
+
+  throw new Error(data?.message ?? data?.error ?? text);
 }
 
 function toRows(value: unknown): BrandThemeRow[] {
@@ -73,7 +91,7 @@ export async function fetchActiveBrandTheme(): Promise<BrandTheme | null> {
   });
 
   if (!response.ok) {
-    throw new Error(await readSupabaseError(response));
+    await throwSupabaseError(response);
   }
 
   const row = toRows(await response.json())[0];
@@ -93,7 +111,7 @@ export async function listBrandThemes(): Promise<{ theme: BrandTheme; isActive: 
   });
 
   if (!response.ok) {
-    throw new Error(await readSupabaseError(response));
+    await throwSupabaseError(response);
   }
 
   return toRows(await response.json()).map((row) => ({
@@ -118,7 +136,7 @@ async function deactivateOtherThemes(config: SupabaseBrandConfig, id: string) {
   });
 
   if (!response.ok) {
-    throw new Error(await readSupabaseError(response));
+    await throwSupabaseError(response);
   }
 }
 
@@ -142,7 +160,7 @@ export async function saveBrandTheme(theme: BrandTheme): Promise<BrandTheme> {
   });
 
   if (!response.ok) {
-    throw new Error(await readSupabaseError(response));
+    await throwSupabaseError(response);
   }
 
   const row = toRows(await response.json())[0];

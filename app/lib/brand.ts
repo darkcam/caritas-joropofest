@@ -168,24 +168,28 @@ export function brandCssVariables(theme: BrandTheme): Record<string, string> {
   };
 }
 
+function envLine(name: string, value: string) {
+  return `${name}="${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 export function brandThemeToEnv(theme: BrandTheme) {
   return [
-    `NEXT_PUBLIC_BRAND_EVENT_NAME=${theme.eventName}`,
-    `NEXT_PUBLIC_BRAND_CARD_TITLE=${theme.cardTitle}`,
-    `NEXT_PUBLIC_BRAND_EVENT_DATE_LABEL=${theme.eventDateLabel}`,
-    `NEXT_PUBLIC_BRAND_HERO_TITLE=${theme.heroTitle}`,
-    `NEXT_PUBLIC_BRAND_HERO_SUBTITLE=${theme.heroSubtitle}`,
-    `NEXT_PUBLIC_BRAND_LOCKED_TITLE=${theme.lockedTitle}`,
-    `NEXT_PUBLIC_BRAND_WALL_TITLE=${theme.wallTitle}`,
-    `NEXT_PUBLIC_BRAND_QR_IMAGE=${theme.qrImage}`,
-    `NEXT_PUBLIC_BRAND_DOWNLOAD_FILE_NAME=${theme.downloadFileName}`,
-    `NEXT_PUBLIC_BRAND_AI_PALETTE=${theme.aiPalette}`,
-    `NEXT_PUBLIC_BRAND_COLOR_PRIMARY=${theme.colors.primary}`,
-    `NEXT_PUBLIC_BRAND_COLOR_INK=${theme.colors.ink}`,
-    `NEXT_PUBLIC_BRAND_COLOR_LIGHT=${theme.colors.light}`,
-    `NEXT_PUBLIC_BRAND_COLOR_MUTED=${theme.colors.muted}`,
-    `NEXT_PUBLIC_BRAND_CREDIT_NAME=${theme.credit.name}`,
-    `NEXT_PUBLIC_BRAND_CREDIT_URL=${theme.credit.url}`,
-    `NEXT_PUBLIC_BRAND_CREDIT_MESSAGE=${theme.credit.message}`,
+    envLine("NEXT_PUBLIC_BRAND_EVENT_NAME", theme.eventName),
+    envLine("NEXT_PUBLIC_BRAND_CARD_TITLE", theme.cardTitle),
+    envLine("NEXT_PUBLIC_BRAND_EVENT_DATE_LABEL", theme.eventDateLabel),
+    envLine("NEXT_PUBLIC_BRAND_HERO_TITLE", theme.heroTitle),
+    envLine("NEXT_PUBLIC_BRAND_HERO_SUBTITLE", theme.heroSubtitle),
+    envLine("NEXT_PUBLIC_BRAND_LOCKED_TITLE", theme.lockedTitle),
+    envLine("NEXT_PUBLIC_BRAND_WALL_TITLE", theme.wallTitle),
+    envLine("NEXT_PUBLIC_BRAND_QR_IMAGE", theme.qrImage),
+    envLine("NEXT_PUBLIC_BRAND_DOWNLOAD_FILE_NAME", theme.downloadFileName),
+    envLine("NEXT_PUBLIC_BRAND_AI_PALETTE", theme.aiPalette),
+    envLine("NEXT_PUBLIC_BRAND_COLOR_PRIMARY", theme.colors.primary),
+    envLine("NEXT_PUBLIC_BRAND_COLOR_INK", theme.colors.ink),
+    envLine("NEXT_PUBLIC_BRAND_COLOR_LIGHT", theme.colors.light),
+    envLine("NEXT_PUBLIC_BRAND_COLOR_MUTED", theme.colors.muted),
+    envLine("NEXT_PUBLIC_BRAND_CREDIT_NAME", theme.credit.name),
+    envLine("NEXT_PUBLIC_BRAND_CREDIT_URL", theme.credit.url),
+    envLine("NEXT_PUBLIC_BRAND_CREDIT_MESSAGE", theme.credit.message),
   ].join("\n");
 }
