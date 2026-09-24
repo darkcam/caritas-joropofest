@@ -209,7 +209,180 @@ export function drawComicVideo(
   context.imageSmoothingEnabled = true;
 }
 
-export function drawCardBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
+function pathRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const limit = Math.min(radius, width / 2, height / 2);
+
+  context.moveTo(x + limit, y);
+  context.arcTo(x + width, y, x + width, y + height, limit);
+  context.arcTo(x + width, y + height, x, y + height, limit);
+  context.arcTo(x, y + height, x, y, limit);
+  context.arcTo(x, y, x + width, y, limit);
+  context.closePath();
+}
+
+function sansFont(size: number, weight: number) {
+  return `${weight} ${size}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+}
+
+export function drawSansText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  centerY: number,
+  maxWidth: number,
+  maxSize: number,
+  color: string,
+  weight = 900,
+) {
+  let size = maxSize;
+
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = sansFont(size, weight);
+
+  while (size > 12 && context.measureText(text).width > maxWidth) {
+    size -= 2;
+    context.font = sansFont(size, weight);
+  }
+
+  context.fillStyle = color;
+  context.fillText(text, centerX, centerY);
+}
+
+export function drawMirroredVideo(
+  context: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  area: PhotoArea,
+) {
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
+  const sourceRatio = sourceWidth / sourceHeight;
+  const targetRatio = area.width / area.height;
+  let sx = 0;
+  let sy = 0;
+  let sw = sourceWidth;
+  let sh = sourceHeight;
+
+  if (sourceRatio > targetRatio) {
+    sw = sourceHeight * targetRatio;
+    sx = (sourceWidth - sw) / 2;
+  } else {
+    sh = sourceWidth / targetRatio;
+    sy = (sourceHeight - sh) * 0.3;
+  }
+
+  context.save();
+  context.translate(area.x + area.width, area.y);
+  context.scale(-1, 1);
+  context.drawImage(video, sx, sy, sw, sh, 0, 0, area.width, area.height);
+  context.restore();
+}
+
+const MODERN_MARGIN = 46;
+const MODERN_PHOTO_INSET = 76;
+const MODERN_FOOTER_HEIGHT = 300;
+const MODERN_RADIUS = 56;
+
+function modernPhotoArea(): PhotoArea {
+  return {
+    x: MODERN_PHOTO_INSET,
+    y: MODERN_PHOTO_INSET,
+    width: CARD_WIDTH - MODERN_PHOTO_INSET * 2,
+    height: CARD_HEIGHT - MODERN_PHOTO_INSET - MODERN_FOOTER_HEIGHT,
+  };
+}
+
+function drawModernBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
+  const gradient = context.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  gradient.addColorStop(0, theme.colors.ink);
+  gradient.addColorStop(1, `${theme.colors.primary}26`);
+
+  context.fillStyle = theme.colors.ink;
+  context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+  context.beginPath();
+  pathRoundedRect(
+    context,
+    MODERN_MARGIN,
+    MODERN_MARGIN,
+    CARD_WIDTH - MODERN_MARGIN * 2,
+    CARD_HEIGHT - MODERN_MARGIN * 2,
+    MODERN_RADIUS + 14,
+  );
+  context.strokeStyle = `${theme.colors.primary}66`;
+  context.lineWidth = 4;
+  context.stroke();
+
+  const area = modernPhotoArea();
+
+  context.fillStyle = `${theme.colors.light}14`;
+  context.beginPath();
+  pathRoundedRect(context, area.x, area.y, area.width, area.height, MODERN_RADIUS);
+  context.fill();
+
+  return area;
+}
+
+function drawModernChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
+  context.beginPath();
+  pathRoundedRect(context, photoArea.x, photoArea.y, photoArea.width, photoArea.height, MODERN_RADIUS);
+  context.strokeStyle = theme.colors.primary;
+  context.lineWidth = 6;
+  context.stroke();
+
+  const footerTop = photoArea.y + photoArea.height;
+  const pillWidth = 320;
+  const pillHeight = 74;
+  const pillY = footerTop + 30;
+
+  context.beginPath();
+  pathRoundedRect(context, CARD_WIDTH / 2 - pillWidth / 2, pillY, pillWidth, pillHeight, pillHeight / 2);
+  context.fillStyle = theme.colors.primary;
+  context.fill();
+
+  drawSansText(
+    context,
+    theme.eventDateLabel.toUpperCase(),
+    CARD_WIDTH / 2,
+    pillY + pillHeight / 2 + 2,
+    pillWidth - 60,
+    38,
+    theme.colors.ink,
+    800,
+  );
+
+  drawSansText(
+    context,
+    theme.cardTitle.toUpperCase(),
+    CARD_WIDTH / 2,
+    pillY + pillHeight + 86,
+    CARD_WIDTH - 180,
+    92,
+    theme.colors.primary,
+  );
+
+  drawSansText(
+    context,
+    theme.eventName,
+    CARD_WIDTH / 2,
+    pillY + pillHeight + 158,
+    CARD_WIDTH - 260,
+    30,
+    theme.colors.light,
+    600,
+  );
+}
+
+function drawPixelBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
   const photoX = CARD_BORDER;
   const photoY = CARD_BORDER;
   const photoWidth = CARD_WIDTH - CARD_BORDER * 2;
@@ -234,7 +407,7 @@ export function drawCardBackground(context: CanvasRenderingContext2D, theme: Bra
   };
 }
 
-export function drawCardChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
+function drawPixelChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
   const overlayHeight = 285;
   const overlayY = photoArea.y + photoArea.height - overlayHeight;
   const dateWidth = 250;
@@ -279,6 +452,38 @@ export function drawCardChrome(context: CanvasRenderingContext2D, photoArea: Pho
   context.fillRect(photoArea.x + photoArea.width - 152, photoArea.y + photoArea.height - 38, 118, 14);
 }
 
+export function drawCardBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
+  return theme.cardStyle === "modern" ? drawModernBackground(context, theme) : drawPixelBackground(context, theme);
+}
+
+function withPhotoClip(
+  context: CanvasRenderingContext2D,
+  photoArea: PhotoArea,
+  theme: BrandTheme,
+  draw: () => void,
+) {
+  if (theme.cardStyle !== "modern") {
+    draw();
+    return;
+  }
+
+  context.save();
+  context.beginPath();
+  pathRoundedRect(context, photoArea.x, photoArea.y, photoArea.width, photoArea.height, MODERN_RADIUS);
+  context.clip();
+  draw();
+  context.restore();
+}
+
+export function drawCardChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
+  if (theme.cardStyle === "modern") {
+    drawModernChrome(context, photoArea, theme);
+    return;
+  }
+
+  drawPixelChrome(context, photoArea, theme);
+}
+
 export function drawCoverImage(
   context: CanvasRenderingContext2D,
   image: CanvasImageSource,
@@ -307,7 +512,14 @@ export function drawCoverImage(
 export function drawCard(context: CanvasRenderingContext2D, video: HTMLVideoElement, theme: BrandTheme) {
   const photoArea = drawCardBackground(context, theme);
 
-  drawComicVideo(context, video, photoArea.x, photoArea.y, photoArea.width, photoArea.height, theme);
+  withPhotoClip(context, photoArea, theme, () => {
+    if (theme.cardStyle === "modern") {
+      drawMirroredVideo(context, video, photoArea);
+    } else {
+      drawComicVideo(context, video, photoArea.x, photoArea.y, photoArea.width, photoArea.height, theme);
+    }
+  });
+
   drawCardChrome(context, photoArea, theme);
 }
 
@@ -318,29 +530,34 @@ export function drawCardWithPortrait(
 ) {
   const photoArea = drawCardBackground(context, theme);
 
-  drawCoverImage(context, image, image.naturalWidth, image.naturalHeight, photoArea);
+  withPhotoClip(context, photoArea, theme, () => {
+    drawCoverImage(context, image, image.naturalWidth, image.naturalHeight, photoArea);
+  });
+
   drawCardChrome(context, photoArea, theme);
 }
 
 export function drawCardPlaceholder(context: CanvasRenderingContext2D, theme: BrandTheme) {
   const photoArea = drawCardBackground(context, theme);
 
-  context.fillStyle = theme.colors.muted;
-  context.fillRect(photoArea.x, photoArea.y, photoArea.width, photoArea.height);
+  withPhotoClip(context, photoArea, theme, () => {
+    context.fillStyle = theme.colors.muted;
+    context.fillRect(photoArea.x, photoArea.y, photoArea.width, photoArea.height);
 
-  const headX = CARD_WIDTH / 2;
-  const headY = photoArea.y + photoArea.height * 0.36;
-  const headRadius = photoArea.width * 0.19;
+    const headX = CARD_WIDTH / 2;
+    const headY = photoArea.y + photoArea.height * 0.36;
+    const headRadius = photoArea.width * 0.19;
 
-  context.fillStyle = theme.colors.light;
-  context.beginPath();
-  context.arc(headX, headY, headRadius, 0, Math.PI * 2);
-  context.fill();
+    context.fillStyle = theme.colors.light;
+    context.beginPath();
+    context.arc(headX, headY, headRadius, 0, Math.PI * 2);
+    context.fill();
 
-  context.fillStyle = theme.colors.ink;
-  context.beginPath();
-  context.ellipse(headX, headY + headRadius * 2.1, headRadius * 1.7, headRadius * 1.25, 0, Math.PI, Math.PI * 2);
-  context.fill();
+    context.fillStyle = theme.colors.ink;
+    context.beginPath();
+    context.ellipse(headX, headY + headRadius * 2.1, headRadius * 1.7, headRadius * 1.25, 0, Math.PI, Math.PI * 2);
+    context.fill();
+  });
 
   drawCardChrome(context, photoArea, theme);
 }

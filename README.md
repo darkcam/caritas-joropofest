@@ -44,7 +44,8 @@ Todas viven en `.env.local`. Ver [`.env.example`](./.env.example) para la lista 
 |---|---|---|
 | `NEXT_PUBLIC_EVENT_UNLOCK_AT` | no | ISO-8601 de cuándo se "abre" el evento. Default `2026-08-29T00:00:00-05:00`. |
 | `NEXT_PUBLIC_BRAND_PRESET` | no | Preset de marca base: `platzi` o `joropofest`. Default `platzi`. |
-| `NEXT_PUBLIC_BRAND_*` | no | Overrides del tema (colores, textos, QR, paleta IA) cuando no hay tema en Supabase. |
+| `NEXT_PUBLIC_BRAND_*` | no | Overrides del tema (estilo de card, colores, textos, QR, prompt IA) cuando no hay tema en Supabase. |
+| `NEXT_PUBLIC_BRAND_CARD_STYLE` | no | `pixel` o `modern`. |
 | `BRAND_ADMIN_TOKEN` | no | Si se define, `PUT /api/brand` exige el header `x-brand-admin-token`. |
 | `SUPABASE_URL` | solo para `/muro` | URL del proyecto Supabase. |
 | `SUPABASE_PUBLISHABLE_KEY` | solo para `/muro` | Publishable / anon key. |
@@ -81,7 +82,7 @@ Sin keys de IA la app usa el render local en canvas (sin coste, sin red, pero de
 
 ## Marca del evento (`/marca`)
 
-La app no está atada a Platzi Conf: colores, textos, QR, nombre del PNG y la paleta del prompt de IA viven en un `BrandTheme`.
+La app no está atada a Platzi Conf: estilo de card, colores, textos, QR, nombre del PNG y el prompt de IA viven en un `BrandTheme`.
 
 1. Aplica el schema de marca (SQL editor de Supabase o CLI):
 
@@ -93,6 +94,8 @@ La app no está atada a Platzi Conf: colores, textos, QR, nombre del PNG y la pa
 
 2. Abre `/marca`, edita el tema con la vista previa en vivo de la card y pulsa **Publicar tema**. Queda guardado en Supabase, así que todos los dispositivos del evento ven el mismo branding al recargar.
 3. Si Supabase no está configurado o la tabla no existe, la app cae al preset de `NEXT_PUBLIC_BRAND_PRESET` y a los overrides `NEXT_PUBLIC_BRAND_*` (el botón **Copiar .env** del editor los genera).
+
+El campo `cardStyle` elige cómo se dibuja la card: `pixel` (marco 16-bit, tipografía de pixel art, retrato pixelado en el fallback local) o `modern` (marco redondeado, tipografía sans y foto sin pixelar). `aiStyle` describe el estilo que se le pide a la IA y `artStyleLabel` es el nombre del estilo que ve la gente en la interfaz.
 
 Los colores se exponen como variables CSS (`--brand-primary`, `--brand-ink`, `--brand-light`, `--brand-muted`) y alimentan también el render del canvas.
 

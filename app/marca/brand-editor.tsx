@@ -5,8 +5,11 @@ import { useBrandContext } from "../brand-provider";
 import {
   BRAND_PRESETS,
   brandThemeToEnv,
+  CARD_STYLE_LABELS,
+  CARD_STYLES,
   type BrandColors,
   type BrandTheme,
+  type CardStyle,
 } from "../lib/brand";
 import { CARD_HEIGHT, CARD_WIDTH, drawCardPlaceholder } from "../lib/card-render";
 
@@ -18,7 +21,7 @@ type BrandEditorProps = {
 };
 
 type TextField = {
-  key: keyof Omit<BrandTheme, "colors" | "credit">;
+  key: keyof Omit<BrandTheme, "colors" | "credit" | "cardStyle">;
   label: string;
   hint?: string;
   multiline?: boolean;
@@ -27,7 +30,7 @@ type TextField = {
 const TEXT_FIELDS: TextField[] = [
   { key: "id", label: "Identificador", hint: "Slug único del evento, ej. joropofest." },
   { key: "eventName", label: "Nombre del evento" },
-  { key: "cardTitle", label: "Título en la card", hint: "Se dibuja en pixel art, mayúsculas." },
+  { key: "cardTitle", label: "Título en la card", hint: "Se dibuja en mayúsculas." },
   { key: "eventDateLabel", label: "Fecha en la card", hint: "Corto, ej. 29AGO26." },
   { key: "heroTitle", label: "Titular de la portada" },
   { key: "heroSubtitle", label: "Bajada de la portada", multiline: true },
@@ -35,14 +38,20 @@ const TEXT_FIELDS: TextField[] = [
   { key: "wallTitle", label: "Título del muro" },
   { key: "qrImage", label: "Imagen/QR del muro", hint: "Ruta pública, ej. /caritas-platzi.png." },
   { key: "downloadFileName", label: "Nombre del PNG descargado" },
+  {
+    key: "artStyleLabel",
+    label: "Nombre del estilo en la interfaz",
+    hint: "Aparece en los mensajes, ej. 16-bit o ilustrado.",
+  },
+  { key: "aiStyle", label: "Estilo para el prompt de IA", multiline: true },
   { key: "aiPalette", label: "Paleta para el prompt de IA", multiline: true },
 ];
 
 const COLOR_FIELDS: { key: keyof BrandColors; label: string; hint: string }[] = [
   { key: "primary", label: "Color de marca", hint: "Acentos, bordes y textos destacados." },
   { key: "ink", label: "Color de fondo", hint: "Fondo de la app y de la card." },
-  { key: "light", label: "Color claro", hint: "Luces del retrato pixel." },
-  { key: "muted", label: "Color medio", hint: "Sombras suaves del retrato pixel." },
+  { key: "light", label: "Color claro", hint: "Luces del retrato y textos secundarios." },
+  { key: "muted", label: "Color medio", hint: "Sombras suaves y fondos neutros." },
 ];
 
 function slugify(value: string) {
@@ -81,6 +90,10 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
 
   const updateText = (key: TextField["key"], value: string) => {
     setDraft((current) => ({ ...current, [key]: key === "id" ? slugify(value) : value }));
+  };
+
+  const updateCardStyle = (value: CardStyle) => {
+    setDraft((current) => ({ ...current, cardStyle: value }));
   };
 
   const updateColor = (key: keyof BrandColors, value: string) => {
@@ -165,8 +178,8 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
               Personaliza el evento
             </h1>
             <p className="max-w-xl text-sm leading-6 text-zinc-300">
-              Cambia colores, textos y la paleta del retrato con IA. El tema activo se guarda en Supabase y aplica a la
-              captura, la card y el muro.
+              Cambia el estilo de la card, colores, textos y el prompt del retrato con IA. El tema activo se guarda en
+              Supabase y aplica a la captura, la card y el muro.
             </p>
             <p className="text-xs font-mono uppercase tracking-[0.18em] text-zinc-500">
               Fuente actual: {source === "supabase" ? "Supabase" : "variables de entorno"}
@@ -204,6 +217,26 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
                 className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/10"
               >
                 {preset.eventName}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Estilo de card</span>
+            {CARD_STYLES.map((style) => (
+              <button
+                key={style}
+                type="button"
+                onClick={() => updateCardStyle(style)}
+                aria-pressed={draft.cardStyle === style}
+                style={
+                  draft.cardStyle === style
+                    ? { backgroundColor: draft.colors.primary, color: draft.colors.ink }
+                    : undefined
+                }
+                className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/10"
+              >
+                {CARD_STYLE_LABELS[style]}
               </button>
             ))}
           </div>

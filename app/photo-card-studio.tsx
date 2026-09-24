@@ -349,7 +349,7 @@ export default function PhotoCardStudio() {
       setIsGenerating(true);
       setStatus({
         tone: "info",
-        text: "Generando retrato 16-bit con IA. Esto puede tardar unos segundos.",
+        text: `Generando retrato ${theme.artStyleLabel} con IA. Esto puede tardar unos segundos.`,
       });
 
       const response = await fetch("/api/generate-card", {
@@ -388,7 +388,7 @@ export default function PhotoCardStudio() {
       setNow(Date.now());
       setStatus({
         tone: "success",
-        text: "Retrato 16-bit generado con IA. Podrás generar otro en 60s.",
+        text: `Retrato ${theme.artStyleLabel} generado con IA. Podrás generar otro en 60s.`,
       });
     } catch {
       if (fallbackVideo) {
@@ -582,7 +582,11 @@ export default function PhotoCardStudio() {
 
         <div className="mx-auto w-full max-w-[430px] lg:max-w-[460px]">
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-[1.55rem] border-[10px] border-[var(--brand-primary)] bg-[var(--brand-ink)] font-mono">
+            <div
+              className={`relative aspect-[2/3] overflow-hidden rounded-[1.55rem] border-[var(--brand-primary)] bg-[var(--brand-ink)] ${
+                theme.cardStyle === "modern" ? "border-4 font-sans" : "border-[10px] font-mono"
+              }`}
+            >
               <video
                 ref={videoRef}
                 className="absolute inset-0 h-full w-full scale-x-[-1] bg-[var(--brand-ink)] object-contain"
@@ -594,7 +598,7 @@ export default function PhotoCardStudio() {
               {capturedImage ? (
                 <Image
                   src={capturedImage}
-                  alt={`Card final 16-bit de ${theme.eventName}`}
+                  alt={`Card final de ${theme.eventName}`}
                   fill
                   unoptimized
                   className="object-cover"
@@ -637,7 +641,7 @@ export default function PhotoCardStudio() {
                     ))}
                   </div>
                   <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--brand-primary)]">
-                    Generando retrato 16-bit
+                    Generando retrato {theme.artStyleLabel}
                   </p>
                 </div>
               )}

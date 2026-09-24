@@ -13,16 +13,13 @@ const EVENT_UNLOCK_AT = process.env.NEXT_PUBLIC_EVENT_UNLOCK_AT ?? DEFAULT_EVENT
 const DEV_UNLOCK_COOKIE = "platzi_dev_unlock";
 const generationCooldowns = new Map<string, number>();
 
-function buildPrompt(palette: string) {
+function buildPrompt(style: string, palette: string) {
   return `
-Transform the provided selfie into a premium 16-bit pixel portrait for a vertical collectible trading card.
+Transform the provided selfie into ${style}, for a vertical collectible trading card.
 Preserve the person's likeness, face shape, hair, expression, pose, skin tone relationships, and main identifying features.
-The output must look like intentionally hand-crafted 16-bit pixel art, not a filtered photograph.
-Use chunky pixel shapes, crisp stair-stepped edges, simplified facial features, graphic clusters of light and shadow, and controlled dithering.
 Use a constrained event-branded palette: ${palette}.
 Make it a centered bust portrait with a clean simple background, strong silhouette, enough headroom, visible shoulders, and empty lower space for an event overlay.
 Do not add text, logos, dates, captions, labels, borders, or extra people.
-Avoid photorealism, smooth gradients, painterly brush strokes, anime style, 3D render, and realistic camera blur.
 `.trim();
 }
 
@@ -192,14 +189,14 @@ async function generateWithOpenAI(imageDataUrl: string, prompt: string) {
   return imageUrl.startsWith("http") ? remoteImageToDataUrl(imageUrl) : imageUrl;
 }
 
-async function generateWithAiGateway(imageDataUrl: string, prompt: string) {
+async function generateWithAiGateway(imageDataUrl: string, prompt: string, useStyleReference: boolean) {
   const apiKey = process.env.AI_GATEWAY_API_KEY;
 
   if (!apiKey) {
     return null;
   }
 
-  const styleReference = await getStyleReferenceDataUrl();
+  const styleReference = useStyleReference ? await getStyleReferenceDataUrl() : null;
   const imageContent = [
     { type: "text", text: prompt },
     { type: "image_url", image_url: { url: imageDataUrl } },
@@ -273,9 +270,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const prompt = buildPrompt((await getBrandTheme()).aiPalette);
+    const theme = await getBrandTheme();
+    const prompt = buildPrompt(theme.aiStyle, theme.aiPalette);
     const imageDataUrl =
-      (await generateWithAiGateway(body.imageDataUrl, prompt)) ?? (await generateWithOpenAI(body.imageDataUrl, prompt));
+      (await generateWithAiGateway(body.imageDataUrl, prompt, theme.cardStyle === "pixel")) ??
+      (await generateWithOpenAI(body.imageDataUrl, prompt));
 
     if (!imageDataUrl) {
       return jsonResponse(

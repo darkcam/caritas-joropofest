@@ -5,6 +5,15 @@ export type BrandColors = {
   muted: string;
 };
 
+export const CARD_STYLES = ["pixel", "modern"] as const;
+
+export type CardStyle = (typeof CARD_STYLES)[number];
+
+export const CARD_STYLE_LABELS: Record<CardStyle, string> = {
+  pixel: "Pixel 16-bit",
+  modern: "Editorial moderno",
+};
+
 export type BrandCredit = {
   name: string;
   url: string;
@@ -22,6 +31,9 @@ export type BrandTheme = {
   wallTitle: string;
   qrImage: string;
   downloadFileName: string;
+  cardStyle: CardStyle;
+  artStyleLabel: string;
+  aiStyle: string;
   aiPalette: string;
   colors: BrandColors;
   credit: BrandCredit;
@@ -39,6 +51,10 @@ export const PLATZI_BRAND_THEME: BrandTheme = {
   wallTitle: "MURO DE PLATZI CONF",
   qrImage: "/caritas-platzi.png",
   downloadFileName: "platzi-conf-16bit-card.png",
+  cardStyle: "pixel",
+  artStyleLabel: "16-bit",
+  aiStyle:
+    "a premium 16-bit pixel portrait with chunky pixel shapes, crisp stair-stepped edges, simplified facial features, graphic clusters of light and shadow, and controlled dithering; it must look intentionally hand-crafted, never a filtered photograph, so avoid photorealism, smooth gradients, painterly brush strokes, anime style and 3D render",
   aiPalette: "navy #121F3D, white, warm gray, dark gray, and green #98CA3F",
   colors: {
     primary: "#98CA3F",
@@ -59,10 +75,16 @@ export const JOROPOFEST_BRAND_THEME: BrandTheme = {
   eventName: "Joropo Fest",
   cardTitle: "JOROPO FEST",
   eventDateLabel: "JOROPO26",
-  heroTitle: "Tu cara en una card 16-bit",
+  heroTitle: "Tu cara en una card del festival",
+  heroSubtitle:
+    "Usa la cámara frontal, captura tu foto y genera automáticamente un retrato ilustrado con IA para tu card del evento.",
   lockedTitle: "Disponible pronto",
   wallTitle: "MURO DE JOROPO FEST",
-  downloadFileName: "joropo-fest-16bit-card.png",
+  downloadFileName: "joropo-fest-card.png",
+  cardStyle: "modern",
+  artStyleLabel: "ilustrado",
+  aiStyle:
+    "a bold flat illustrated portrait with clean vector shapes, confident line work, soft cel shading and poster-like contrast; avoid photorealism, pixel art, heavy texture and 3D render",
   aiPalette: "deep plum #2C1233, white, warm gray, dark gray, and mango #F2A007",
   colors: {
     primary: "#F2A007",
@@ -93,6 +115,12 @@ function readColor(value: string | undefined, fallback: string) {
   return trimmed && HEX_COLOR.test(trimmed) ? trimmed : fallback;
 }
 
+function readCardStyle(value: unknown, fallback: CardStyle): CardStyle {
+  const candidate = typeof value === "string" ? value.trim().toLowerCase() : "";
+
+  return CARD_STYLES.find((style) => style === candidate) ?? fallback;
+}
+
 export function getBrandThemeFromEnv(): BrandTheme {
   const preset =
     BRAND_PRESETS[process.env.NEXT_PUBLIC_BRAND_PRESET?.trim().toLowerCase() ?? ""] ?? DEFAULT_BRAND_THEME;
@@ -108,6 +136,9 @@ export function getBrandThemeFromEnv(): BrandTheme {
     wallTitle: readString(process.env.NEXT_PUBLIC_BRAND_WALL_TITLE, preset.wallTitle),
     qrImage: readString(process.env.NEXT_PUBLIC_BRAND_QR_IMAGE, preset.qrImage),
     downloadFileName: readString(process.env.NEXT_PUBLIC_BRAND_DOWNLOAD_FILE_NAME, preset.downloadFileName),
+    cardStyle: readCardStyle(process.env.NEXT_PUBLIC_BRAND_CARD_STYLE, preset.cardStyle),
+    artStyleLabel: readString(process.env.NEXT_PUBLIC_BRAND_ART_STYLE_LABEL, preset.artStyleLabel),
+    aiStyle: readString(process.env.NEXT_PUBLIC_BRAND_AI_STYLE, preset.aiStyle),
     aiPalette: readString(process.env.NEXT_PUBLIC_BRAND_AI_PALETTE, preset.aiPalette),
     colors: {
       primary: readColor(process.env.NEXT_PUBLIC_BRAND_COLOR_PRIMARY, preset.colors.primary),
@@ -144,6 +175,9 @@ export function normalizeBrandTheme(value: unknown, fallback: BrandTheme = DEFAU
     wallTitle: readString(candidate.wallTitle, fallback.wallTitle),
     qrImage: readString(candidate.qrImage, fallback.qrImage),
     downloadFileName: readString(candidate.downloadFileName, fallback.downloadFileName),
+    cardStyle: readCardStyle(candidate.cardStyle, fallback.cardStyle),
+    artStyleLabel: readString(candidate.artStyleLabel, fallback.artStyleLabel),
+    aiStyle: readString(candidate.aiStyle, fallback.aiStyle),
     aiPalette: readString(candidate.aiPalette, fallback.aiPalette),
     colors: {
       primary: readColor(candidate.colors?.primary, fallback.colors.primary),
@@ -183,6 +217,9 @@ export function brandThemeToEnv(theme: BrandTheme) {
     envLine("NEXT_PUBLIC_BRAND_WALL_TITLE", theme.wallTitle),
     envLine("NEXT_PUBLIC_BRAND_QR_IMAGE", theme.qrImage),
     envLine("NEXT_PUBLIC_BRAND_DOWNLOAD_FILE_NAME", theme.downloadFileName),
+    envLine("NEXT_PUBLIC_BRAND_CARD_STYLE", theme.cardStyle),
+    envLine("NEXT_PUBLIC_BRAND_ART_STYLE_LABEL", theme.artStyleLabel),
+    envLine("NEXT_PUBLIC_BRAND_AI_STYLE", theme.aiStyle),
     envLine("NEXT_PUBLIC_BRAND_AI_PALETTE", theme.aiPalette),
     envLine("NEXT_PUBLIC_BRAND_COLOR_PRIMARY", theme.colors.primary),
     envLine("NEXT_PUBLIC_BRAND_COLOR_INK", theme.colors.ink),
