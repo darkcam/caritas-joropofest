@@ -2,57 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import BrandFooter from "./brand-footer";
+import { useBrand } from "./brand-provider";
+import { CARD_HEIGHT, CARD_WIDTH, drawCard, drawCardWithPortrait } from "./lib/card-render";
 
-const CARD_WIDTH = 1080;
-const CARD_HEIGHT = 1620;
-const CARD_BORDER = 68;
 const COOLDOWN_MS = 60_000;
-const EVENT_DATE = "29AGO26";
 const DEFAULT_EVENT_UNLOCK_AT = "2026-08-29T00:00:00-05:00";
 const EVENT_UNLOCK_AT = process.env.NEXT_PUBLIC_EVENT_UNLOCK_AT ?? DEFAULT_EVENT_UNLOCK_AT;
 const DEV_UNLOCK_COOKIE = "platzi_dev_unlock";
-const PLATZI_GREEN = "#98CA3F";
-const PLATZI_NAVY = "#121F3D";
-const INK = PLATZI_NAVY;
-const COMIC_WHITE = "#f8f8f2";
-const COMIC_GRAY = "#8f8f86";
-const PIXEL_FONT: Record<string, string[]> = {
-  " ": ["000", "000", "000", "000", "000", "000", "000"],
-  "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
-  "1": ["00100", "01100", "00100", "00100", "00100", "00100", "11111"],
-  "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
-  "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
-  "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
-  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-  B: ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
-  C: ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
-  E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
-  H: ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
-  I: ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-  J: ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
-  L: ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-  M: ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
-  P: ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-  R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-  S: ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
-  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
-  U: ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
-  V: ["10001", "10001", "10001", "10001", "01010", "01010", "00100"],
-  Y: ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
-  Z: ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
-  F: ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
-  G: ["01111", "10000", "10000", "10011", "10001", "10001", "01110"],
-  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
-  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-  "9": ["01110", "10001", "10001", "01111", "00001", "00010", "00110"],
-};
-
-type PhotoArea = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
 
 type StatusMessage = {
   tone: "info" | "error" | "success";
@@ -104,251 +61,7 @@ function formatCountdown(milliseconds: number) {
   };
 }
 
-function luminance(red: number, green: number, blue: number) {
-  return red * 0.299 + green * 0.587 + blue * 0.114;
-}
-
-function hexToRgb(hex: string) {
-  const value = Number.parseInt(hex.slice(1), 16);
-
-  return {
-    red: (value >> 16) & 255,
-    green: (value >> 8) & 255,
-    blue: value & 255,
-  };
-}
-
-function paintPixel(data: Uint8ClampedArray, index: number, color: string) {
-  const { red, green, blue } = hexToRgb(color);
-
-  data[index] = red;
-  data[index + 1] = green;
-  data[index + 2] = blue;
-}
-
-function getPixelTextUnits(text: string) {
-  return [...text.toUpperCase()].reduce((width, character, index) => {
-    const glyph = PIXEL_FONT[character] ?? PIXEL_FONT[" "];
-
-    return width + glyph[0].length + (index === text.length - 1 ? 0 : 1);
-  }, 0);
-}
-
-function drawPixelText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  centerX: number,
-  centerY: number,
-  maxWidth: number,
-  maxScale: number,
-  color: string,
-) {
-  const characters = [...text.toUpperCase()];
-  const units = getPixelTextUnits(text);
-  const scale = Math.max(1, Math.min(maxScale, Math.floor(maxWidth / units)));
-  const width = units * scale;
-  const height = 7 * scale;
-  let x = centerX - width / 2;
-  const y = centerY - height / 2;
-
-  context.fillStyle = color;
-
-  for (const [characterIndex, character] of characters.entries()) {
-    const glyph = PIXEL_FONT[character] ?? PIXEL_FONT[" "];
-
-    for (const [rowIndex, row] of glyph.entries()) {
-      for (const [columnIndex, pixel] of [...row].entries()) {
-        if (pixel === "1") {
-          context.fillRect(Math.round(x + columnIndex * scale), Math.round(y + rowIndex * scale), scale, scale);
-        }
-      }
-    }
-
-    x += (glyph[0].length + (characterIndex === characters.length - 1 ? 0 : 1)) * scale;
-  }
-}
-
-function drawComicVideo(
-  context: CanvasRenderingContext2D,
-  video: HTMLVideoElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const sourceWidth = video.videoWidth;
-  const sourceHeight = video.videoHeight;
-  const sourceRatio = sourceWidth / sourceHeight;
-  const targetRatio = width / height;
-  let drawX = x;
-  let drawY = y;
-  let drawWidth = width;
-  let drawHeight = height;
-
-  if (sourceRatio > targetRatio) {
-    drawHeight = width / sourceRatio;
-    drawY = y + (height - drawHeight) / 2;
-  } else {
-    drawWidth = height * sourceRatio;
-    drawX = x + (width - drawWidth) / 2;
-  }
-
-  const lowWidth = 188;
-  const lowHeight = Math.round(lowWidth / sourceRatio);
-  const pixelCanvas = document.createElement("canvas");
-  pixelCanvas.width = lowWidth;
-  pixelCanvas.height = lowHeight;
-
-  const pixelContext = pixelCanvas.getContext("2d");
-
-  if (!pixelContext) {
-    return;
-  }
-
-  pixelContext.translate(lowWidth, 0);
-  pixelContext.scale(-1, 1);
-  pixelContext.drawImage(video, 0, 0, sourceWidth, sourceHeight, 0, 0, lowWidth, lowHeight);
-
-  const pixels = pixelContext.getImageData(0, 0, lowWidth, lowHeight);
-  const source = new Uint8ClampedArray(pixels.data);
-
-  for (let index = 0; index < pixels.data.length; index += 4) {
-    const pixel = index / 4;
-    const px = pixel % lowWidth;
-    const py = Math.floor(pixel / lowWidth);
-    const red = pixels.data[index];
-    const green = pixels.data[index + 1];
-    const blue = pixels.data[index + 2];
-    const light = luminance(red, green, blue);
-    const warm = red * 0.85 + green * 0.7 - blue * 0.75;
-    const right = px < lowWidth - 1 ? (py * lowWidth + px + 1) * 4 : index;
-    const bottom = py < lowHeight - 1 ? ((py + 1) * lowWidth + px) * 4 : index;
-    const edge =
-      Math.abs(light - luminance(source[right], source[right + 1], source[right + 2])) +
-      Math.abs(light - luminance(source[bottom], source[bottom + 1], source[bottom + 2]));
-
-    if (edge > 74 || light < 54) {
-      paintPixel(pixels.data, index, INK);
-    } else if (warm > 165 && light > 86 && light < 226) {
-      paintPixel(pixels.data, index, PLATZI_GREEN);
-    } else if (light > 186) {
-      paintPixel(pixels.data, index, COMIC_WHITE);
-    } else if (light > 104) {
-      paintPixel(pixels.data, index, COMIC_GRAY);
-    } else {
-      paintPixel(pixels.data, index, INK);
-    }
-  }
-
-  pixelContext.putImageData(pixels, 0, 0);
-
-  context.imageSmoothingEnabled = false;
-  context.drawImage(pixelCanvas, drawX, drawY, drawWidth, drawHeight);
-  context.imageSmoothingEnabled = true;
-}
-
-function drawCardBackground(context: CanvasRenderingContext2D) {
-  const photoX = CARD_BORDER;
-  const photoY = CARD_BORDER;
-  const photoWidth = CARD_WIDTH - CARD_BORDER * 2;
-  const photoHeight = CARD_HEIGHT - CARD_BORDER * 2;
-
-  context.fillStyle = INK;
-  context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  context.fillStyle = PLATZI_GREEN;
-  context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  context.fillStyle = INK;
-  context.fillRect(24, 24, CARD_WIDTH - 48, CARD_HEIGHT - 48);
-  context.fillStyle = PLATZI_GREEN;
-  context.fillRect(44, 44, CARD_WIDTH - 88, CARD_HEIGHT - 88);
-  context.fillStyle = INK;
-  context.fillRect(56, 56, CARD_WIDTH - 112, CARD_HEIGHT - 112);
-
-  return {
-    x: photoX,
-    y: photoY,
-    width: photoWidth,
-    height: photoHeight,
-  };
-}
-
-function drawCardChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea) {
-  const overlayHeight = 285;
-  const overlayY = photoArea.y + photoArea.height - overlayHeight;
-  const dateWidth = 250;
-  const dateHeight = 70;
-
-  context.strokeStyle = PLATZI_GREEN;
-  context.lineWidth = 18;
-  context.strokeRect(photoArea.x - 2, photoArea.y - 2, photoArea.width + 4, photoArea.height + 4);
-  context.strokeStyle = INK;
-  context.lineWidth = 8;
-  context.strokeRect(photoArea.x + 18, photoArea.y + 18, photoArea.width - 36, photoArea.height - 36);
-
-  const gradient = context.createLinearGradient(0, overlayY - 90, 0, photoArea.y + photoArea.height);
-  gradient.addColorStop(0, "rgba(17, 17, 17, 0)");
-  gradient.addColorStop(0.32, "rgba(17, 17, 17, 0.72)");
-  gradient.addColorStop(1, "rgba(17, 17, 17, 0.96)");
-  context.fillStyle = gradient;
-  context.fillRect(photoArea.x, overlayY - 90, photoArea.width, overlayHeight + 90);
-
-  context.fillStyle = PLATZI_GREEN;
-  context.fillRect(photoArea.x + 34, overlayY + 24, photoArea.width - 68, 12);
-
-  context.fillStyle = PLATZI_GREEN;
-  context.fillRect(CARD_WIDTH / 2 - dateWidth / 2, overlayY + 58, dateWidth, dateHeight);
-  context.strokeStyle = INK;
-  context.lineWidth = 7;
-  context.strokeRect(CARD_WIDTH / 2 - dateWidth / 2 + 6, overlayY + 64, dateWidth - 12, dateHeight - 12);
-
-  drawPixelText(context, EVENT_DATE, CARD_WIDTH / 2, overlayY + 93, dateWidth - 36, 7, INK);
-  drawPixelText(context, "PLATZI CONF", CARD_WIDTH / 2, overlayY + 185, photoArea.width - 92, 10, PLATZI_GREEN);
-
-  context.fillStyle = PLATZI_GREEN;
-  context.fillRect(photoArea.x + 34, photoArea.y + photoArea.height - 38, 118, 14);
-  context.fillRect(photoArea.x + photoArea.width - 152, photoArea.y + photoArea.height - 38, 118, 14);
-}
-
-function drawCoverImage(
-  context: CanvasRenderingContext2D,
-  image: CanvasImageSource,
-  sourceWidth: number,
-  sourceHeight: number,
-  area: PhotoArea,
-) {
-  const sourceRatio = sourceWidth / sourceHeight;
-  const targetRatio = area.width / area.height;
-  let sx = 0;
-  let sy = 0;
-  let sw = sourceWidth;
-  let sh = sourceHeight;
-
-  if (sourceRatio > targetRatio) {
-    sw = sourceHeight * targetRatio;
-    sx = (sourceWidth - sw) / 2;
-  } else {
-    sh = sourceWidth / targetRatio;
-    sy = (sourceHeight - sh) * 0.38;
-  }
-
-  context.drawImage(image, sx, sy, sw, sh, area.x, area.y, area.width, area.height);
-}
-
-function drawCard(context: CanvasRenderingContext2D, video: HTMLVideoElement) {
-  const photoArea = drawCardBackground(context);
-
-  drawComicVideo(context, video, photoArea.x, photoArea.y, photoArea.width, photoArea.height);
-  drawCardChrome(context, photoArea);
-}
-
-function drawCardWithPortrait(context: CanvasRenderingContext2D, image: HTMLImageElement) {
-  const photoArea = drawCardBackground(context);
-
-  drawCoverImage(context, image, image.naturalWidth, image.naturalHeight, photoArea);
-  drawCardChrome(context, photoArea);
-}
-
-function captureSourceImage(video: HTMLVideoElement) {
+function captureSourceImage(video: HTMLVideoElement, backgroundColor: string) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   const width = 1024;
@@ -378,7 +91,7 @@ function captureSourceImage(video: HTMLVideoElement) {
     dx = (width - dw) / 2;
   }
 
-  context.fillStyle = "#121F3D";
+  context.fillStyle = backgroundColor;
   context.fillRect(0, 0, width, height);
   context.translate(width, 0);
   context.scale(-1, 1);
@@ -398,6 +111,7 @@ function loadImage(source: string) {
 }
 
 export default function PhotoCardStudio() {
+  const theme = useBrand();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -557,7 +271,7 @@ export default function PhotoCardStudio() {
 
     canvas.width = CARD_WIDTH;
     canvas.height = CARD_HEIGHT;
-    drawCard(context, video);
+    drawCard(context, video, theme);
     setCapturedImage(canvas.toDataURL("image/png"));
   };
 
@@ -590,7 +304,7 @@ export default function PhotoCardStudio() {
       return;
     }
 
-    const source = captureSourceImage(video);
+    const source = captureSourceImage(video, theme.colors.ink);
 
     if (!source) {
       setStatus({
@@ -668,7 +382,7 @@ export default function PhotoCardStudio() {
       const portrait = await loadImage(data.imageDataUrl);
       canvas.width = CARD_WIDTH;
       canvas.height = CARD_HEIGHT;
-      drawCardWithPortrait(context, portrait);
+      drawCardWithPortrait(context, portrait, theme);
       setCapturedImage(canvas.toDataURL("image/png"));
       setCooldownUntil(Date.now() + COOLDOWN_MS);
       setNow(Date.now());
@@ -698,7 +412,7 @@ export default function PhotoCardStudio() {
 
     const link = document.createElement("a");
     link.href = capturedImage;
-    link.download = "platzi-conf-16bit-card.png";
+    link.download = theme.downloadFileName;
     link.click();
   };
 
@@ -756,17 +470,17 @@ export default function PhotoCardStudio() {
 
   if (gateLocked) {
     return (
-      <main className="flex min-h-dvh flex-col bg-[#121F3D] text-white">
+      <main className="flex min-h-dvh flex-col bg-[var(--brand-ink)] text-white">
         <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-8 px-5 py-10 text-center">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#98CA3F]/50 bg-[#98CA3F]/10 px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.24em] text-[#98CA3F]">
-            Platzi Conf · {EVENT_DATE}
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.24em] text-[var(--brand-primary)]">
+            {theme.eventName} · {theme.eventDateLabel}
           </div>
           <div className="space-y-4">
-            <h1 className="text-5xl font-black leading-[0.92] tracking-[-0.06em] text-[#98CA3F] sm:text-7xl">
-              Disponible el 29 de agosto
+            <h1 className="text-5xl font-black leading-[0.92] tracking-[-0.06em] text-[var(--brand-primary)] sm:text-7xl">
+              {theme.lockedTitle}
             </h1>
             <p className="mx-auto max-w-xl text-base leading-7 text-zinc-300 sm:text-lg">
-              La cámara y generación de cards se habilitarán automáticamente para el meetup.
+              La cámara y generación de cards se habilitarán automáticamente para el evento.
             </p>
           </div>
 
@@ -778,50 +492,29 @@ export default function PhotoCardStudio() {
               ["Seg", countdown.seconds],
             ].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-4">
-                <div className="text-3xl font-black text-[#98CA3F] sm:text-5xl">{value}</div>
+                <div className="text-3xl font-black text-[var(--brand-primary)] sm:text-5xl">{value}</div>
                 <div className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
               </div>
             ))}
           </div>
         </section>
-        <footer className="border-t border-white/10 px-5 py-5 text-center font-mono text-xs leading-6 text-zinc-400 sm:text-sm">
-          Creado por{" "}
-          <a
-            href="https://erasmoh.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="font-black text-[#98CA3F] underline decoration-[#98CA3F]/40 underline-offset-4 transition hover:text-green-300"
-          >
-            @ErasmoHernandez
-          </a>
-          , con amor para Platzi Conf ·{" "}
-          <a
-            href="https://erasmoh.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="font-black text-white underline decoration-white/30 underline-offset-4 transition hover:text-[#98CA3F]"
-          >
-            erasmoh.dev
-          </a>
-        </footer>
+        <BrandFooter />
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-[#121F3D] text-white">
+    <main className="flex min-h-dvh flex-col bg-[var(--brand-ink)] text-white">
       <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-5 py-6 sm:px-8 lg:grid lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:py-10">
         <div className="flex flex-col gap-5">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#98CA3F]/50 bg-[#98CA3F]/10 px-4 py-2 text-sm font-bold uppercase tracking-[0.24em] text-[#98CA3F]">
-            Platzi Conf
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-4 py-2 text-sm font-bold uppercase tracking-[0.24em] text-[var(--brand-primary)]">
+            {theme.eventName}
           </div>
           <div className="space-y-4">
-            <h1 className="max-w-xl text-5xl font-black leading-[0.92] tracking-[-0.06em] text-[#98CA3F] sm:text-7xl">
-              Tu cara en una card 16-bit
+            <h1 className="max-w-xl text-5xl font-black leading-[0.92] tracking-[-0.06em] text-[var(--brand-primary)] sm:text-7xl">
+              {theme.heroTitle}
             </h1>
-            <p className="max-w-lg text-base leading-7 text-zinc-300 sm:text-lg">
-              Usa la cámara frontal, captura tu foto y genera automáticamente un retrato 16-bit pixel con IA para tu card de Platzi Conf.
-            </p>
+            <p className="max-w-lg text-base leading-7 text-zinc-300 sm:text-lg">{theme.heroSubtitle}</p>
           </div>
 
           <div
@@ -830,7 +523,7 @@ export default function PhotoCardStudio() {
                 ? "border-red-400/40 bg-red-500/10 text-red-100"
                 : status.tone === "success"
                   ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                  : "border-[#98CA3F]/30 bg-[#98CA3F]/10 text-green-100"
+                  : "border-white/20 bg-white/[0.06] text-zinc-100"
             }`}
           >
             {status.text}
@@ -841,7 +534,8 @@ export default function PhotoCardStudio() {
               <button
                 type="button"
                 onClick={startCamera}
-                className="rounded-xl bg-[#98CA3F] px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-[#121F3D] transition hover:scale-[1.01] hover:bg-green-400"
+                style={{ backgroundColor: theme.colors.primary, color: theme.colors.ink }}
+                className="rounded-xl px-4 py-3 text-sm font-black uppercase tracking-[0.14em] transition hover:scale-[1.01]"
               >
                 {cameraReady ? "Reactivar cámara" : "Activar cámara"}
               </button>
@@ -849,7 +543,7 @@ export default function PhotoCardStudio() {
                 type="button"
                 onClick={captureCard}
                 disabled={!cameraReady || !canGenerate}
-                className="rounded-xl border-2 border-[#98CA3F] px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-[#98CA3F] transition hover:scale-[1.01] hover:bg-[#98CA3F] hover:text-[#121F3D] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:bg-transparent disabled:hover:text-[#98CA3F]"
+                className="rounded-xl border-2 border-[var(--brand-primary)] px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-[var(--brand-primary)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
               >
                 {isGenerating
                   ? "Generando..."
@@ -865,7 +559,7 @@ export default function PhotoCardStudio() {
                 type="button"
                 onClick={downloadCard}
                 disabled={!capturedImage}
-                className="rounded-lg border border-[#98CA3F] px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-[#98CA3F] transition hover:bg-[#98CA3F] hover:text-[#121F3D] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#98CA3F]"
+                className="rounded-lg border border-[var(--brand-primary)] px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-[var(--brand-primary)] transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Descargar
               </button>
@@ -888,10 +582,10 @@ export default function PhotoCardStudio() {
 
         <div className="mx-auto w-full max-w-[430px] lg:max-w-[460px]">
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-[1.55rem] border-[10px] border-[#98CA3F] bg-[#121F3D] font-mono">
+            <div className="relative aspect-[2/3] overflow-hidden rounded-[1.55rem] border-[10px] border-[var(--brand-primary)] bg-[var(--brand-ink)] font-mono">
               <video
                 ref={videoRef}
-                className="absolute inset-0 h-full w-full scale-x-[-1] bg-[#121F3D] object-contain"
+                className="absolute inset-0 h-full w-full scale-x-[-1] bg-[var(--brand-ink)] object-contain"
                 muted
                 playsInline
                 autoPlay
@@ -900,38 +594,49 @@ export default function PhotoCardStudio() {
               {capturedImage ? (
                 <Image
                   src={capturedImage}
-                  alt="Card final 16-bit de Platzi Conf"
+                  alt={`Card final 16-bit de ${theme.eventName}`}
                   fill
                   unoptimized
                   className="object-cover"
                 />
               ) : (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#121F3D] via-[#121F3D]/80 to-transparent px-4 pb-5 pt-20 text-center">
-                  <span className="mb-2 inline-flex bg-[#98CA3F] px-3 py-1 text-xs font-black tracking-[0.18em] text-[#121F3D]">
-                    {EVENT_DATE}
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-5 pt-20 text-center"
+                  style={{
+                    backgroundImage: `linear-gradient(to top, ${theme.colors.ink}, ${theme.colors.ink}cc, transparent)`,
+                  }}
+                >
+                  <span
+                    className="mb-2 inline-flex px-3 py-1 text-xs font-black tracking-[0.18em]"
+                    style={{ backgroundColor: theme.colors.primary, color: theme.colors.ink }}
+                  >
+                    {theme.eventDateLabel}
                   </span>
-                  <p className="text-xl font-black tracking-[0.02em] text-[#98CA3F]">
-                    PLATZI CONF
-                  </p>
+                  <p className="text-xl font-black tracking-[0.02em] text-[var(--brand-primary)]">{theme.cardTitle}</p>
                 </div>
               )}
               {isGenerating && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#121F3D]/72 px-8 text-center backdrop-blur-[2px]">
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center backdrop-blur-[2px]"
+                  style={{ backgroundColor: `${theme.colors.ink}b8` }}
+                >
                   <div className="flex items-center gap-3">
                     {Array.from({ length: 4 }).map((_, index) => (
                       <span
                         key={index}
-                        className={`h-3.5 w-3.5 rounded-full transition-colors duration-200 ${
-                          loaderStep === index
-                            ? "bg-[#98CA3F]"
-                            : (loaderStep + index) % 2 === 0
-                              ? "bg-white"
-                              : "bg-zinc-600"
-                        }`}
+                        className="h-3.5 w-3.5 rounded-full transition-colors duration-200"
+                        style={{
+                          backgroundColor:
+                            loaderStep === index
+                              ? theme.colors.primary
+                              : (loaderStep + index) % 2 === 0
+                                ? theme.colors.light
+                                : theme.colors.muted,
+                        }}
                       />
                     ))}
                   </div>
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-[#98CA3F]">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--brand-primary)]">
                     Generando retrato 16-bit
                   </p>
                 </div>
@@ -944,39 +649,26 @@ export default function PhotoCardStudio() {
           </div>
         </div>
       </section>
-      <footer className="border-t border-white/10 px-5 py-5 text-center font-mono text-xs leading-6 text-zinc-400 sm:text-sm">
-        Creado por{" "}
-        <a
-          href="https://erasmoh.dev"
-          target="_blank"
-          rel="noreferrer"
-          className="font-black text-[#98CA3F] underline decoration-[#98CA3F]/40 underline-offset-4 transition hover:text-green-300"
-        >
-          @ErasmoHernandez
-        </a>
-        , con amor para Platzi Conf ·{" "}
-        <a
-          href="https://erasmoh.dev"
-          target="_blank"
-          rel="noreferrer"
-          className="font-black text-white underline decoration-white/30 underline-offset-4 transition hover:text-[#98CA3F]"
-        >
-          erasmoh.dev
-        </a>
-      </footer>
+      <BrandFooter />
       {isShareDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#121F3D]/75 px-5 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-5 backdrop-blur-sm"
+          style={{ backgroundColor: `${theme.colors.ink}bf` }}
+        >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="share-wall-title"
-            className="w-full max-w-md rounded-[2rem] border border-[#98CA3F]/50 bg-[#111] p-6 text-white shadow-2xl"
+            className="w-full max-w-md rounded-[2rem] border border-[var(--brand-primary)] bg-[#111] p-6 text-white shadow-2xl"
           >
             <div className="space-y-4">
-              <div className="inline-flex rounded-full bg-[#98CA3F] px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#121F3D]">
+              <div
+                className="inline-flex rounded-full px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.18em]"
+                style={{ backgroundColor: theme.colors.primary, color: theme.colors.ink }}
+              >
                 Confirmación
               </div>
-              <h2 id="share-wall-title" className="text-2xl font-black leading-tight text-[#98CA3F]">
+              <h2 id="share-wall-title" className="text-2xl font-black leading-tight text-[var(--brand-primary)]">
                 Enviar al muro
               </h2>
               <p className="text-sm leading-6 text-zinc-200">
@@ -997,7 +689,8 @@ export default function PhotoCardStudio() {
                 type="button"
                 onClick={shareToWall}
                 disabled={isSharing}
-                className="rounded-xl bg-[#98CA3F] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#121F3D] transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ backgroundColor: theme.colors.primary, color: theme.colors.ink }}
+                className="rounded-xl px-4 py-3 text-xs font-black uppercase tracking-[0.14em] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSharing ? "Enviando..." : "Sí, enviar"}
               </button>

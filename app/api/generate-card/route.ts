@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { getBrandTheme } from "../../lib/brand-store";
 
 export const runtime = "nodejs";
 
@@ -12,16 +13,18 @@ const EVENT_UNLOCK_AT = process.env.NEXT_PUBLIC_EVENT_UNLOCK_AT ?? DEFAULT_EVENT
 const DEV_UNLOCK_COOKIE = "platzi_dev_unlock";
 const generationCooldowns = new Map<string, number>();
 
-const prompt = `
+function buildPrompt(palette: string) {
+  return `
 Transform the provided selfie into a premium 16-bit pixel portrait for a vertical collectible trading card.
 Preserve the person's likeness, face shape, hair, expression, pose, skin tone relationships, and main identifying features.
 The output must look like intentionally hand-crafted 16-bit pixel art, not a filtered photograph.
 Use chunky pixel shapes, crisp stair-stepped edges, simplified facial features, graphic clusters of light and shadow, and controlled dithering.
-Use a constrained Platzi-inspired palette: Platzi navy #121F3D, white, warm gray, dark gray, and Platzi green #98CA3F.
+Use a constrained event-branded palette: ${palette}.
 Make it a centered bust portrait with a clean simple background, strong silhouette, enough headroom, visible shoulders, and empty lower space for an event overlay.
 Do not add text, logos, dates, captions, labels, borders, or extra people.
 Avoid photorealism, smooth gradients, painterly brush strokes, anime style, 3D render, and realistic camera blur.
 `.trim();
+}
 
 type GenerateRequest = {
   imageDataUrl?: unknown;
@@ -152,7 +155,7 @@ async function dataUrlToBlob(dataUrl: string) {
   return response.blob();
 }
 
-async function generateWithOpenAI(imageDataUrl: string) {
+async function generateWithOpenAI(imageDataUrl: string, prompt: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -189,7 +192,7 @@ async function generateWithOpenAI(imageDataUrl: string) {
   return imageUrl.startsWith("http") ? remoteImageToDataUrl(imageUrl) : imageUrl;
 }
 
-async function generateWithAiGateway(imageDataUrl: string) {
+async function generateWithAiGateway(imageDataUrl: string, prompt: string) {
   const apiKey = process.env.AI_GATEWAY_API_KEY;
 
   if (!apiKey) {
@@ -270,7 +273,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const imageDataUrl = (await generateWithAiGateway(body.imageDataUrl)) ?? (await generateWithOpenAI(body.imageDataUrl));
+    const prompt = buildPrompt((await getBrandTheme()).aiPalette);
+    const imageDataUrl =
+      (await generateWithAiGateway(body.imageDataUrl, prompt)) ?? (await generateWithOpenAI(body.imageDataUrl, prompt));
 
     if (!imageDataUrl) {
       return jsonResponse(
