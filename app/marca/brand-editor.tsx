@@ -84,31 +84,32 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
     drawCardPlaceholder(context, draft);
   }, [draft]);
 
-  useEffect(() => {
-    setTheme(draft);
-  }, [draft, setTheme]);
+  const applyDraft = (next: BrandTheme) => {
+    setDraft(next);
+    setTheme(next);
+  };
 
   const updateText = (key: TextField["key"], value: string) => {
-    setDraft((current) => ({ ...current, [key]: key === "id" ? slugify(value) : value }));
+    applyDraft({ ...draft, [key]: key === "id" ? slugify(value) : value });
   };
 
   const updateCardStyle = (value: CardStyle) => {
-    setDraft((current) => ({ ...current, cardStyle: value }));
+    applyDraft({ ...draft, cardStyle: value });
   };
 
   const updateColor = (key: keyof BrandColors, value: string) => {
-    setDraft((current) => ({ ...current, colors: { ...current.colors, [key]: value } }));
+    applyDraft({ ...draft, colors: { ...draft.colors, [key]: value } });
   };
 
   const updateCredit = (key: keyof BrandTheme["credit"], value: string) => {
-    setDraft((current) => ({ ...current, credit: { ...current.credit, [key]: value } }));
+    applyDraft({ ...draft, credit: { ...draft.credit, [key]: value } });
   };
 
   const applyPreset = (presetId: string) => {
     const preset = BRAND_PRESETS[presetId];
 
     if (preset) {
-      setDraft(preset);
+      applyDraft(preset);
       setMessage({ tone: "info", text: `Preset "${preset.eventName}" cargado. Recuerda guardar para publicarlo.` });
     }
   };
