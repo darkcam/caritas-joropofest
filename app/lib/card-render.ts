@@ -287,8 +287,26 @@ export function drawMirroredVideo(
 
 const MODERN_MARGIN = 46;
 const MODERN_PHOTO_INSET = 76;
-const MODERN_FOOTER_HEIGHT = 300;
+const MODERN_FOOTER_HEIGHT = 340;
 const MODERN_RADIUS = 56;
+
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+function hexColor(value: string, fallback: string) {
+  return HEX_COLOR.test(value.trim()) ? value.trim() : fallback;
+}
+
+function withAlpha(value: string, alpha: string) {
+  return value.length === 7 ? `${value}${alpha}` : value;
+}
+
+function modernColors(theme: BrandTheme) {
+  return {
+    primary: hexColor(theme.colors.primary, "#ffffff"),
+    ink: hexColor(theme.colors.ink, "#111111"),
+    light: hexColor(theme.colors.light, "#ffffff"),
+  };
+}
 
 function modernPhotoArea(): PhotoArea {
   return {
@@ -300,11 +318,12 @@ function modernPhotoArea(): PhotoArea {
 }
 
 function drawModernBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
+  const colors = modernColors(theme);
   const gradient = context.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  gradient.addColorStop(0, theme.colors.ink);
-  gradient.addColorStop(1, `${theme.colors.primary}26`);
+  gradient.addColorStop(0, colors.ink);
+  gradient.addColorStop(1, withAlpha(colors.primary, "26"));
 
-  context.fillStyle = theme.colors.ink;
+  context.fillStyle = colors.ink;
   context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   context.fillStyle = gradient;
   context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
@@ -318,13 +337,13 @@ function drawModernBackground(context: CanvasRenderingContext2D, theme: BrandThe
     CARD_HEIGHT - MODERN_MARGIN * 2,
     MODERN_RADIUS + 14,
   );
-  context.strokeStyle = `${theme.colors.primary}66`;
+  context.strokeStyle = withAlpha(colors.primary, "66");
   context.lineWidth = 4;
   context.stroke();
 
   const area = modernPhotoArea();
 
-  context.fillStyle = `${theme.colors.light}14`;
+  context.fillStyle = withAlpha(colors.light, "14");
   context.beginPath();
   pathRoundedRect(context, area.x, area.y, area.width, area.height, MODERN_RADIUS);
   context.fill();
@@ -333,9 +352,11 @@ function drawModernBackground(context: CanvasRenderingContext2D, theme: BrandThe
 }
 
 function drawModernChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
+  const colors = modernColors(theme);
+
   context.beginPath();
   pathRoundedRect(context, photoArea.x, photoArea.y, photoArea.width, photoArea.height, MODERN_RADIUS);
-  context.strokeStyle = theme.colors.primary;
+  context.strokeStyle = colors.primary;
   context.lineWidth = 6;
   context.stroke();
 
@@ -346,7 +367,7 @@ function drawModernChrome(context: CanvasRenderingContext2D, photoArea: PhotoAre
 
   context.beginPath();
   pathRoundedRect(context, CARD_WIDTH / 2 - pillWidth / 2, pillY, pillWidth, pillHeight, pillHeight / 2);
-  context.fillStyle = theme.colors.primary;
+  context.fillStyle = colors.primary;
   context.fill();
 
   drawSansText(
@@ -356,7 +377,7 @@ function drawModernChrome(context: CanvasRenderingContext2D, photoArea: PhotoAre
     pillY + pillHeight / 2 + 2,
     pillWidth - 60,
     38,
-    theme.colors.ink,
+    colors.ink,
     800,
   );
 
@@ -364,20 +385,20 @@ function drawModernChrome(context: CanvasRenderingContext2D, photoArea: PhotoAre
     context,
     theme.cardTitle.toUpperCase(),
     CARD_WIDTH / 2,
-    pillY + pillHeight + 86,
+    pillY + pillHeight + 72,
     CARD_WIDTH - 180,
-    92,
-    theme.colors.primary,
+    84,
+    colors.primary,
   );
 
   drawSansText(
     context,
     theme.eventName,
     CARD_WIDTH / 2,
-    pillY + pillHeight + 158,
+    pillY + pillHeight + 140,
     CARD_WIDTH - 260,
     30,
-    theme.colors.light,
+    colors.light,
     600,
   );
 }
