@@ -51,6 +51,10 @@ Todas viven en `.env.local`. Ver [`.env.example`](./.env.example) para la lista 
 | `SUPABASE_PUBLISHABLE_KEY` | solo para `/muro` | Publishable / anon key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Solo si necesitas bypass de RLS desde el server. **No** la prefijes con `NEXT_PUBLIC_`. |
 | `SUPABASE_WALL_BUCKET` | no | Bucket de imágenes. Default `wall-images`. |
+| `STABILITY_API_KEY` | solo para IA | Habilita generación con Stability AI (proveedor preferido). |
+| `STABILITY_ENDPOINT` | no | Default `https://api.stability.ai/v2beta/stable-image/control/structure`. |
+| `STABILITY_CONTROL_STRENGTH` | no | 0–1, cuánto respeta la composición de la selfie. Default `0.75`. |
+| `STABILITY_STYLE_PRESET` | no | `style_preset` de Stability, si el endpoint elegido lo admite. |
 | `AI_GATEWAY_API_KEY` | solo para IA | Habilita generación vía Vercel AI Gateway. |
 | `AI_GATEWAY_IMAGE_MODEL` | no | Default `google/gemini-3-pro-image`. |
 | `AI_GATEWAY_BASE_URL` | no | Default `https://ai-gateway.vercel.sh/v1`. |
@@ -101,7 +105,7 @@ Los colores se exponen como variables CSS (`--brand-primary`, `--brand-ink`, `--
 
 ## Generación con IA (opcional)
 
-La app intenta primero **Vercel AI Gateway** y si no hay key, cae a **OpenAI**. Si ninguno está configurado, el endpoint devuelve `501` y el cliente sigue funcionando con la card generada localmente.
+La app intenta primero **Stability AI** (`control/structure`, que conserva la composición de la selfie y aplica el estilo del tema), luego **Vercel AI Gateway** y por último **OpenAI**. Si ninguno está configurado, el endpoint devuelve `501` y el cliente sigue funcionando con la card generada localmente.
 
 Detalles en `app/api/generate-card/route.ts`. El cooldown por IP es de 60s, en memoria del proceso (suficiente para un evento; para producción persistente usa un store externo).
 
