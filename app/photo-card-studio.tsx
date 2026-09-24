@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import BrandFooter from "./brand-footer";
 import { useBrand } from "./brand-provider";
-import { CARD_HEIGHT, CARD_WIDTH, drawCard, drawCardWithPortrait } from "./lib/card-render";
+import { cardSize, drawCard, drawCardWithPortrait } from "./lib/card-render";
+import { loadImageElement } from "./lib/frame-image";
 
 const COOLDOWN_MS = 60_000;
 const DEFAULT_EVENT_UNLOCK_AT = "2026-08-29T00:00:00-05:00";
@@ -116,6 +117,7 @@ export default function PhotoCardStudio() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const generationInFlightRef = useRef(false);
+  const frameImageRef = useRef<HTMLImageElement | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -134,6 +136,15 @@ export default function PhotoCardStudio() {
   const gateLocked = now < eventUnlockTime && !devUnlocked;
   const countdown = formatCountdown(eventUnlockTime - now);
   const cooldownRemainingSeconds = cooldownUntil ? Math.max(0, Math.ceil((cooldownUntil - now) / 1000)) : 0;
+  const previewSize = cardSize(theme);
+  const framePreview = theme.cardStyle === "frame" && Boolean(theme.frame.image);
+  const framePreviewStyle = {
+    left: `${theme.frame.photoArea.x * 100}%`,
+    top: `${theme.frame.photoArea.y * 100}%`,
+    width: `${theme.frame.photoArea.width * 100}%`,
+    height: `${theme.frame.photoArea.height * 100}%`,
+    borderRadius: `${theme.frame.radius * 100}%`,
+  };
   const canGenerate = cooldownRemainingSeconds === 0 && !isGenerating;
 
   const stopCamera = useCallback(() => {
@@ -199,6 +210,30 @@ export default function PhotoCardStudio() {
   useEffect(() => {
     return stopCamera;
   }, [stopCamera]);
+
+  useEffect(() => {
+    frameImageRef.current = null;
+
+    if (theme.cardStyle !== "frame" || !theme.frame.image) {
+      return;
+    }
+
+    let active = true;
+
+    loadImageElement(theme.frame.image)
+      .then((image) => {
+        if (active) {
+          frameImageRef.current = image;
+        }
+      })
+      .catch(() => {
+        frameImageRef.current = null;
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [theme.cardStyle, theme.frame.image]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -269,9 +304,11 @@ export default function PhotoCardStudio() {
       return;
     }
 
-    canvas.width = CARD_WIDTH;
-    canvas.height = CARD_HEIGHT;
-    drawCard(context, video, theme);
+    const size = cardSize(theme);
+
+    canvas.width = size.width;
+    canvas.height = size.height;
+    drawCard(context, video, theme, frameImageRef.current);
     setCapturedImage(canvas.toDataURL("image/png"));
   };
 
@@ -380,9 +417,11 @@ export default function PhotoCardStudio() {
       }
 
       const portrait = await loadImage(data.imageDataUrl);
-      canvas.width = CARD_WIDTH;
-      canvas.height = CARD_HEIGHT;
-      drawCardWithPortrait(context, portrait, theme);
+      const size = cardSize(theme);
+
+      canvas.width = size.width;
+      canvas.height = size.height;
+      drawCardWithPortrait(context, portrait, theme, frameImageRef.current);
       setCapturedImage(canvas.toDataURL("image/png"));
       setCooldownUntil(Date.now() + COOLDOWN_MS);
       setNow(Date.now());
@@ -583,13 +622,26 @@ export default function PhotoCardStudio() {
         <div className="mx-auto w-full max-w-[430px] lg:max-w-[460px]">
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl">
             <div
-              className={`relative aspect-[2/3] overflow-hidden rounded-[1.55rem] border-[var(--brand-primary)] bg-[var(--brand-ink)] ${
-                theme.cardStyle === "modern" ? "border-4 font-sans" : "border-[10px] font-mono"
+              className={`relative overflow-hidden rounded-[1.55rem] border-[var(--brand-primary)] bg-[var(--brand-ink)] ${
+                theme.cardStyle === "pixel" ? "border-[10px] font-mono" : "border-4 font-sans"
               }`}
+              style={{ aspectRatio: `${previewSize.width} / ${previewSize.height}` }}
             >
+              {framePreview && !capturedImage && (
+                <Image
+                  src={theme.frame.image}
+                  alt={`Portada de ${theme.eventName}`}
+                  fill
+                  unoptimized
+                  className="pointer-events-none object-cover"
+                />
+              )}
               <video
                 ref={videoRef}
-                className="absolute inset-0 h-full w-full scale-x-[-1] bg-[var(--brand-ink)] object-contain"
+                className={`absolute scale-x-[-1] bg-[var(--brand-ink)] ${
+                  framePreview ? "object-cover" : "inset-0 h-full w-full object-contain"
+                }`}
+                style={framePreview ? framePreviewStyle : undefined}
                 muted
                 playsInline
                 autoPlay
@@ -603,7 +655,7 @@ export default function PhotoCardStudio() {
                   unoptimized
                   className="object-cover"
                 />
-              ) : (
+              ) : framePreview ? null : (
                 <div
                   className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-5 pt-20 text-center"
                   style={{

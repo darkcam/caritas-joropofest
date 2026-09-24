@@ -11,7 +11,8 @@ import {
   type BrandTheme,
   type CardStyle,
 } from "../lib/brand";
-import { CARD_HEIGHT, CARD_WIDTH, drawCardPlaceholder } from "../lib/card-render";
+import { cardSize, drawCardPlaceholder } from "../lib/card-render";
+import { detectFrameArea, loadImageElement } from "../lib/frame-image";
 
 type BrandEditorProps = {
   initialTheme: BrandTheme;
@@ -21,7 +22,7 @@ type BrandEditorProps = {
 };
 
 type TextField = {
-  key: keyof Omit<BrandTheme, "colors" | "credit" | "cardStyle">;
+  key: keyof Omit<BrandTheme, "colors" | "credit" | "cardStyle" | "frame">;
   label: string;
   hint?: string;
   multiline?: boolean;
@@ -47,6 +48,13 @@ const TEXT_FIELDS: TextField[] = [
   { key: "aiPalette", label: "Paleta para el prompt de IA", multiline: true },
 ];
 
+const FRAME_AREA_FIELDS: { key: keyof BrandTheme["frame"]["photoArea"]; label: string }[] = [
+  { key: "x", label: "Izquierda" },
+  { key: "y", label: "Arriba" },
+  { key: "width", label: "Ancho" },
+  { key: "height", label: "Alto" },
+];
+
 const COLOR_FIELDS: { key: keyof BrandColors; label: string; hint: string }[] = [
   { key: "primary", label: "Color de marca", hint: "Acentos, bordes y textos destacados." },
   { key: "ink", label: "Color de fondo", hint: "Fondo de la app y de la card." },
@@ -70,6 +78,35 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
   const [token, setToken] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: "info" | "error" | "success"; text: string } | null>(null);
+  const [frameAsset, setFrameAsset] = useState<{ src: string; image: HTMLImageElement | null } | null>(null);
+  const [isUploadingFrame, setIsUploadingFrame] = useState(false);
+  const frameImage = frameAsset && frameAsset.src === draft.frame.image ? frameAsset.image : null;
+
+  useEffect(() => {
+    const src = draft.frame.image;
+
+    if (!src) {
+      return;
+    }
+
+    let active = true;
+
+    loadImageElement(src)
+      .then((image) => {
+        if (active) {
+          setFrameAsset({ src, image });
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setFrameAsset({ src, image: null });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [draft.frame.image]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -79,10 +116,12 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
       return;
     }
 
-    canvas.width = CARD_WIDTH;
-    canvas.height = CARD_HEIGHT;
-    drawCardPlaceholder(context, draft);
-  }, [draft]);
+    const size = cardSize(draft);
+
+    canvas.width = size.width;
+    canvas.height = size.height;
+    drawCardPlaceholder(context, draft, frameImage);
+  }, [draft, frameImage]);
 
   const applyDraft = (next: BrandTheme) => {
     setDraft(next);
@@ -95,6 +134,91 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
 
   const updateCardStyle = (value: CardStyle) => {
     applyDraft({ ...draft, cardStyle: value });
+  };
+
+  const updateFrame = (patch: Partial<BrandTheme["frame"]>) => {
+    applyDraft({ ...draft, frame: { ...draft.frame, ...patch } });
+  };
+
+  const updateFrameArea = (key: keyof BrandTheme["frame"]["photoArea"], value: number) => {
+    updateFrame({ photoArea: { ...draft.frame.photoArea, [key]: value } });
+  };
+
+  const measureFrame = async (source: string) => {
+    try {
+      const image = await loadImageElement(source);
+      const detected = detectFrameArea(image);
+
+      return {
+        image: source,
+        aspect: Number((image.naturalWidth / image.naturalHeight).toFixed(4)),
+        photoArea: detected ?? draft.frame.photoArea,
+        detected: Boolean(detected),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const uploadFrame = async (file: File) => {
+    try {
+      setIsUploadingFrame(true);
+
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No pude leer el archivo."));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch("/api/brand", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "x-brand-admin-token": token } : {}),
+        },
+        body: JSON.stringify({ imageDataUrl }),
+      });
+      const data = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error ?? "No pude subir la portada.");
+      }
+
+      const measured = await measureFrame(data.url);
+
+      updateFrame(measured ? { image: data.url, aspect: measured.aspect, photoArea: measured.photoArea } : { image: data.url });
+      setMessage({
+        tone: "success",
+        text: measured?.detected
+          ? "Portada subida y área de foto detectada automáticamente."
+          : "Portada subida. Ajusta el área de la foto con los controles.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "No pude subir la portada.",
+      });
+    } finally {
+      setIsUploadingFrame(false);
+    }
+  };
+
+  const detectArea = async () => {
+    const measured = await measureFrame(draft.frame.image);
+
+    if (!measured) {
+      setMessage({ tone: "error", text: "No pude cargar la portada para medirla." });
+      return;
+    }
+
+    updateFrame({ aspect: measured.aspect, photoArea: measured.photoArea });
+    setMessage({
+      tone: measured.detected ? "success" : "info",
+      text: measured.detected
+        ? "Área de foto detectada desde el recuadro claro de la portada."
+        : "No encontré un recuadro claro; ajusta el área manualmente.",
+    });
   };
 
   const updateColor = (key: keyof BrandColors, value: string) => {
@@ -241,6 +365,105 @@ export default function BrandEditor({ initialTheme, source, storageAvailable, to
               </button>
             ))}
           </div>
+
+          {draft.cardStyle === "frame" && (
+            <div className="space-y-4 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
+              <div className="space-y-1">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
+                  Portada del evento
+                </span>
+                <p className="text-[11px] leading-4 text-zinc-500">
+                  La card usa esta imagen completa y coloca la foto dentro del recuadro definido abajo.
+                </p>
+              </div>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-zinc-400">Imagen</span>
+                <input
+                  type="text"
+                  value={draft.frame.image}
+                  onChange={(event) => updateFrame({ image: event.target.value })}
+                  placeholder="/marco-joropofest.png"
+                  className="w-full rounded-lg border border-white/20 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none focus:border-[var(--brand-primary)]"
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="cursor-pointer rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/10">
+                  {isUploadingFrame ? "Subiendo..." : "Subir portada"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={isUploadingFrame}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+
+                      if (file) {
+                        void uploadFrame(file);
+                      }
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void detectArea()}
+                  disabled={!draft.frame.image}
+                  className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/10 disabled:opacity-40"
+                >
+                  Detectar área de foto
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {FRAME_AREA_FIELDS.map((field) => (
+                  <label key={field.key} className="flex flex-col gap-1">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                      {field.label} ({Math.round(draft.frame.photoArea[field.key] * 100)}%)
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.001}
+                      value={draft.frame.photoArea[field.key]}
+                      onChange={(event) => updateFrameArea(field.key, Number(event.target.value))}
+                      className="accent-[var(--brand-primary)]"
+                    />
+                  </label>
+                ))}
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                    Esquinas ({Math.round(draft.frame.radius * 100)}%)
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.5}
+                    step={0.005}
+                    value={draft.frame.radius}
+                    onChange={(event) => updateFrame({ radius: Number(event.target.value) })}
+                    className="accent-[var(--brand-primary)]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                    Proporción (ancho/alto)
+                  </span>
+                  <input
+                    type="number"
+                    min={0.3}
+                    max={3}
+                    step={0.0001}
+                    value={draft.frame.aspect}
+                    onChange={(event) => updateFrame({ aspect: Number(event.target.value) })}
+                    className="w-full rounded-lg border border-white/20 bg-white/[0.04] px-3 py-2 font-mono text-sm text-white outline-none focus:border-[var(--brand-primary)]"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             {COLOR_FIELDS.map((field) => (

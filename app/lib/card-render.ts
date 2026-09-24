@@ -473,7 +473,62 @@ function drawPixelChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea
   context.fillRect(photoArea.x + photoArea.width - 152, photoArea.y + photoArea.height - 38, 118, 14);
 }
 
-export function drawCardBackground(context: CanvasRenderingContext2D, theme: BrandTheme): PhotoArea {
+export function cardSize(theme: BrandTheme) {
+  if (theme.cardStyle !== "frame") {
+    return { width: CARD_WIDTH, height: CARD_HEIGHT };
+  }
+
+  return { width: CARD_WIDTH, height: Math.round(CARD_WIDTH / theme.frame.aspect) };
+}
+
+export function frameCardPhotoArea(theme: BrandTheme): PhotoArea {
+  const { width, height } = cardSize(theme);
+  const { photoArea } = theme.frame;
+
+  return {
+    x: photoArea.x * width,
+    y: photoArea.y * height,
+    width: photoArea.width * width,
+    height: photoArea.height * height,
+  };
+}
+
+function frameRadius(theme: BrandTheme) {
+  return theme.frame.radius * cardSize(theme).width;
+}
+
+function drawFrameBackground(
+  context: CanvasRenderingContext2D,
+  theme: BrandTheme,
+  frameImage: CanvasImageSource | null,
+): PhotoArea {
+  const { width, height } = cardSize(theme);
+  const area = frameCardPhotoArea(theme);
+
+  context.fillStyle = hexColor(theme.colors.ink, "#111111");
+  context.fillRect(0, 0, width, height);
+
+  if (frameImage) {
+    context.drawImage(frameImage, 0, 0, width, height);
+  }
+
+  context.fillStyle = hexColor(theme.colors.muted, "#888888");
+  context.beginPath();
+  pathRoundedRect(context, area.x, area.y, area.width, area.height, frameRadius(theme));
+  context.fill();
+
+  return area;
+}
+
+export function drawCardBackground(
+  context: CanvasRenderingContext2D,
+  theme: BrandTheme,
+  frameImage: CanvasImageSource | null = null,
+): PhotoArea {
+  if (theme.cardStyle === "frame") {
+    return drawFrameBackground(context, theme, frameImage);
+  }
+
   return theme.cardStyle === "modern" ? drawModernBackground(context, theme) : drawPixelBackground(context, theme);
 }
 
@@ -483,20 +538,31 @@ function withPhotoClip(
   theme: BrandTheme,
   draw: () => void,
 ) {
-  if (theme.cardStyle !== "modern") {
+  if (theme.cardStyle === "pixel") {
     draw();
     return;
   }
 
   context.save();
   context.beginPath();
-  pathRoundedRect(context, photoArea.x, photoArea.y, photoArea.width, photoArea.height, MODERN_RADIUS);
+  pathRoundedRect(
+    context,
+    photoArea.x,
+    photoArea.y,
+    photoArea.width,
+    photoArea.height,
+    theme.cardStyle === "frame" ? frameRadius(theme) : MODERN_RADIUS,
+  );
   context.clip();
   draw();
   context.restore();
 }
 
 export function drawCardChrome(context: CanvasRenderingContext2D, photoArea: PhotoArea, theme: BrandTheme) {
+  if (theme.cardStyle === "frame") {
+    return;
+  }
+
   if (theme.cardStyle === "modern") {
     drawModernChrome(context, photoArea, theme);
     return;
@@ -530,11 +596,16 @@ export function drawCoverImage(
   context.drawImage(image, sx, sy, sw, sh, area.x, area.y, area.width, area.height);
 }
 
-export function drawCard(context: CanvasRenderingContext2D, video: HTMLVideoElement, theme: BrandTheme) {
-  const photoArea = drawCardBackground(context, theme);
+export function drawCard(
+  context: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  theme: BrandTheme,
+  frameImage: CanvasImageSource | null = null,
+) {
+  const photoArea = drawCardBackground(context, theme, frameImage);
 
   withPhotoClip(context, photoArea, theme, () => {
-    if (theme.cardStyle === "modern") {
+    if (theme.cardStyle !== "pixel") {
       drawMirroredVideo(context, video, photoArea);
     } else {
       drawComicVideo(context, video, photoArea.x, photoArea.y, photoArea.width, photoArea.height, theme);
@@ -548,8 +619,9 @@ export function drawCardWithPortrait(
   context: CanvasRenderingContext2D,
   image: HTMLImageElement,
   theme: BrandTheme,
+  frameImage: CanvasImageSource | null = null,
 ) {
-  const photoArea = drawCardBackground(context, theme);
+  const photoArea = drawCardBackground(context, theme, frameImage);
 
   withPhotoClip(context, photoArea, theme, () => {
     drawCoverImage(context, image, image.naturalWidth, image.naturalHeight, photoArea);
@@ -558,14 +630,18 @@ export function drawCardWithPortrait(
   drawCardChrome(context, photoArea, theme);
 }
 
-export function drawCardPlaceholder(context: CanvasRenderingContext2D, theme: BrandTheme) {
-  const photoArea = drawCardBackground(context, theme);
+export function drawCardPlaceholder(
+  context: CanvasRenderingContext2D,
+  theme: BrandTheme,
+  frameImage: CanvasImageSource | null = null,
+) {
+  const photoArea = drawCardBackground(context, theme, frameImage);
 
   withPhotoClip(context, photoArea, theme, () => {
     context.fillStyle = theme.colors.muted;
     context.fillRect(photoArea.x, photoArea.y, photoArea.width, photoArea.height);
 
-    const headX = CARD_WIDTH / 2;
+    const headX = photoArea.x + photoArea.width / 2;
     const headY = photoArea.y + photoArea.height * 0.36;
     const headRadius = photoArea.width * 0.19;
 
